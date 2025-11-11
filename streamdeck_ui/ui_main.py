@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'main.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.5.3
+## Created by: Qt User Interface Compiler version 6.10.0
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -67,7 +67,7 @@ class Ui_MainWindow(object):
 
         self.settingsButton = QPushButton(self.centralwidget)
         self.settingsButton.setObjectName(u"settingsButton")
-        sizePolicy = QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.settingsButton.sizePolicy().hasHeightForWidth())
@@ -75,14 +75,14 @@ class Ui_MainWindow(object):
         self.settingsButton.setMinimumSize(QSize(0, 0))
         self.settingsButton.setMaximumSize(QSize(30, 16777215))
         icon = QIcon()
-        icon.addFile(u":/icons/icons/gear.png", QSize(), QIcon.Normal, QIcon.Off)
+        icon.addFile(u":/icons/icons/gear.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
         self.settingsButton.setIcon(icon)
 
         self.deviceSettings_horizontalLayout.addWidget(self.settingsButton)
 
         self.cpu_usage = QProgressBar(self.centralwidget)
         self.cpu_usage.setObjectName(u"cpu_usage")
-        sizePolicy1 = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         sizePolicy1.setHorizontalStretch(0)
         sizePolicy1.setVerticalStretch(0)
         sizePolicy1.setHeightForWidth(self.cpu_usage.sizePolicy().hasHeightForWidth())
@@ -100,7 +100,7 @@ class Ui_MainWindow(object):
         self.pageActions = QHBoxLayout()
         self.pageActions.setObjectName(u"pageActions")
         self.pageActions.setContentsMargins(0, 0, 0, -1)
-        self.horizontalSpacer = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.horizontalSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.pageActions.addItem(self.horizontalSpacer)
 
@@ -110,7 +110,7 @@ class Ui_MainWindow(object):
         self.add_page.setSizePolicy(sizePolicy)
         self.add_page.setMaximumSize(QSize(16777215, 16777215))
         icon1 = QIcon()
-        icon1.addFile(u":/icons/icons/add_page.png", QSize(), QIcon.Normal, QIcon.Off)
+        icon1.addFile(u":/icons/icons/add_page.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
         self.add_page.setIcon(icon1)
 
         self.pageActions.addWidget(self.add_page)
@@ -118,7 +118,7 @@ class Ui_MainWindow(object):
         self.remove_page = QPushButton(self.centralwidget)
         self.remove_page.setObjectName(u"remove_page")
         icon2 = QIcon()
-        icon2.addFile(u":/icons/icons/remove_page.png", QSize(), QIcon.Normal, QIcon.Off)
+        icon2.addFile(u":/icons/icons/remove_page.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
         self.remove_page.setIcon(icon2)
 
         self.pageActions.addWidget(self.remove_page)
@@ -128,7 +128,7 @@ class Ui_MainWindow(object):
 
         self.pages = QTabWidget(self.centralwidget)
         self.pages.setObjectName(u"pages")
-        sizePolicy2 = QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        sizePolicy2 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         sizePolicy2.setHorizontalStretch(0)
         sizePolicy2.setVerticalStretch(0)
         sizePolicy2.setHeightForWidth(self.pages.sizePolicy().hasHeightForWidth())
@@ -159,7 +159,7 @@ class Ui_MainWindow(object):
         self.button_actions = QHBoxLayout()
         self.button_actions.setObjectName(u"button_actions")
         self.button_actions.setContentsMargins(-1, 10, -1, 0)
-        self.horizontalSpacer_2 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.horizontalSpacer_2 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.button_actions.addItem(self.horizontalSpacer_2)
 

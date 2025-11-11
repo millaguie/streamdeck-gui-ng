@@ -1,0 +1,83 @@
+name: Prometheus AlertManager Monitor
+version: 1.0.0
+description: Monitors Prometheus AlertManager and displays alert count. Flashes on new alerts and opens AlertManager in browser when pressed.
+author: StreamDeck UI Community
+entry_point: alertmanager_plugin.py
+license: MIT
+
+lifecycle_mode: always_running
+can_switch_page: true
+
+max_retries: 5
+retry_delay: 10
+
+variables:
+  - name: alertmanager_url
+    type: url
+    description: URL of the AlertManager instance (e.g., https://alertmanager.example.com)
+    required: true
+
+  - name: environment_name
+    type: string
+    description: Environment name to display (e.g., Production, Staging)
+    required: true
+
+  - name: poll_interval
+    type: int
+    description: Polling interval in seconds
+    required: false
+    default: 30
+
+  - name: client_cert
+    type: certificate
+    description: Path to client certificate file (.crt or .pem)
+    required: false
+
+  - name: client_key
+    type: certificate
+    description: Path to client key file (.key)
+    required: false
+
+  - name: ca_cert
+    type: certificate
+    description: Path to CA certificate for verification
+    required: false
+
+  - name: cert_password
+    type: password
+    description: Password for certificate (if encrypted)
+    required: false
+
+  - name: auth_type
+    type: string
+    description: Authentication type (none, basic, bearer)
+    required: false
+    default: none
+
+  - name: username
+    type: string
+    description: Username for basic authentication
+    required: false
+
+  - name: password
+    type: password
+    description: Password for basic authentication
+    required: false
+
+  - name: bearer_token
+    type: password
+    description: Bearer token for authentication
+    required: false
+
+  - name: browser_command
+    type: string
+    description: Custom browser command (leave empty for default browser)
+    required: false
+
+  - name: flash_duration
+    type: int
+    description: Duration to flash and show page on new alerts (seconds)
+    required: false
+    default: 10
+
+icon: alertmanager_icon.png

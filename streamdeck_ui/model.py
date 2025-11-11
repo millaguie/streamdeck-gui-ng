@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict
+from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -36,6 +36,12 @@ class ButtonState:
     """Background color of the button"""
     force_refresh: bool = False
     """Force icon refresh after command execution"""
+    plugin_id: str = ""
+    """Plugin ID if this button is controlled by a plugin"""
+    plugin_config: Dict[str, Any] = field(default_factory=dict)
+    """Plugin configuration"""
+    plugin_can_switch_page: bool = False
+    """Whether the plugin can request page switches"""
 
 
 @dataclass

@@ -1,0 +1,80 @@
+name: Arch Linux Update Monitor
+version: 1.0.0
+description: Monitors available system updates for Arch Linux (pacman, AUR, Flatpak). Shows update count and launches update command on button press.
+author: StreamDeck UI Community
+entry_point: arch_update_plugin.py
+license: MIT
+
+lifecycle_mode: always_running
+can_switch_page: true
+
+max_retries: 5
+retry_delay: 10
+
+variables:
+  - name: check_command
+    type: string
+    description: Command to check for updates (default uses checkupdates from pacman-contrib)
+    required: false
+    default: checkupdates
+
+  - name: aur_check_command
+    type: string
+    description: Command to check AUR updates (e.g., yay -Qu, paru -Qu). Leave empty to disable.
+    required: false
+
+  - name: flatpak_check
+    type: bool
+    description: Also check for Flatpak updates
+    required: false
+    default: false
+
+  - name: update_command
+    type: string
+    description: Command to run when button is pressed to update system (will be executed in a terminal)
+    required: false
+    default: sudo pacman -Syu
+
+  - name: terminal
+    type: string
+    description: Terminal emulator to use (e.g., gnome-terminal, konsole, alacritty, kitty, xterm)
+    required: false
+    default: gnome-terminal
+
+  - name: terminal_execute_flag
+    type: string
+    description: Flag for terminal to execute command (e.g., -- for gnome-terminal, -e for xterm)
+    required: false
+    default: --
+
+  - name: check_interval
+    type: int
+    description: Interval between update checks in seconds
+    required: false
+    default: 3600
+
+  - name: notify_on_updates
+    type: bool
+    description: Request page switch when new updates are available
+    required: false
+    default: true
+
+  - name: notify_duration
+    type: int
+    description: Duration to show page when new updates available (seconds)
+    required: false
+    default: 10
+
+  - name: show_count_when_zero
+    type: bool
+    description: Show "0 updates" instead of "Up to date"
+    required: false
+    default: false
+
+  - name: system_name
+    type: string
+    description: System name to display (e.g., "Main PC", "Server")
+    required: false
+    default: System
+
+icon: arch_icon.png

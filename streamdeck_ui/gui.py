@@ -180,11 +180,14 @@ class DraggableButton(QToolButton):
 
 def handle_keypress(ui, deck_id: str, key: int, state: bool) -> None:
     # Handle button press (state=True) and release (state=False) events
+
+    # Notify plugins about button press/release
+    page = api.get_page(deck_id)
+    api.notify_button_press(deck_id, page, key, state)
+
     if state:
         if api.reset_dimmer(deck_id):
             return
-
-        page = api.get_page(deck_id)
         command = api.get_button_command(deck_id, page, key)
         keys = api.get_button_keys(deck_id, page, key)
         write = api.get_button_write(deck_id, page, key)
@@ -621,6 +624,21 @@ def build_button_state_form(tab) -> None:
     button_id = _button()
     button_state_id = tab.property("button_state_id")
 
+    # Add button mode selector at the top of the form
+    from PySide6.QtWidgets import QComboBox, QLabel
+    mode_label = QLabel("Button Mode:")
+    mode_selector = QComboBox()
+    mode_selector.addItem("Command/Keys/Write", "command")
+    mode_selector.addItem("Switch Page", "switch_page")
+    mode_selector.addItem("Plugin", "plugin")
+    mode_selector.setObjectName("button_mode_selector")
+
+    # Insert at the beginning of the form (row 0, shift everything down)
+    tab_ui.formLayout.insertRow(0, mode_label, mode_selector)
+
+    # Store reference for later use
+    tab_ui.button_mode_selector = mode_selector
+
     # set values
     # reset the button configuration to the default
     _reset_build_button_state_form(tab_ui)
@@ -674,6 +692,456 @@ def build_button_state_form(tab) -> None:
     tab_ui.remove_image.clicked.connect(show_button_state_remove_image_dialog)
     tab_ui.text_h_align.clicked.connect(partial(update_align_text_horizontal))
     tab_ui.text_v_align.clicked.connect(partial(update_align_text_vertical))
+
+    # Determine current button mode based on state
+    current_mode = _determine_button_mode(button_state)
+    # Set the mode selector
+    mode_index = mode_selector.findData(current_mode)
+    if mode_index >= 0:
+        mode_selector.setCurrentIndex(mode_index)
+
+    # Connect mode selector to handler
+    mode_selector.currentIndexChanged.connect(partial(_handle_button_mode_change, tab_ui, deck_id, page_id, button_id, button_state_id))
+
+    # Add plugin configuration UI
+    _build_plugin_configuration_ui(tab, tab_ui, deck_id, page_id, button_id, button_state_id)
+
+    # Apply initial mode visibility
+    _apply_button_mode_visibility(tab_ui, current_mode)
+
+
+def _determine_button_mode(button_state):
+    """Determine the current button mode based on its state."""
+    # Priority: plugin > switch_page > command
+    if button_state.plugin_id:
+        return "plugin"
+    elif button_state.switch_page > 0 or button_state.temp_switch_page > 0:
+        return "switch_page"
+    else:
+        return "command"
+
+
+def _handle_button_mode_change(tab_ui, deck_id, page_id, button_id, button_state_id, index=None):
+    """Handle button mode change."""
+    mode = tab_ui.button_mode_selector.currentData()
+
+    # Clear conflicting settings when switching modes
+    if mode == "command":
+        # Clear switch page settings
+        api.set_button_switch_page(deck_id, page_id, button_id, 0)
+        api.set_button_temp_switch_page(deck_id, page_id, button_id, 0)
+        # Detach plugin if attached
+        if api.get_button_plugin_id(deck_id, page_id, button_id):
+            api.detach_plugin_from_button(deck_id, page_id, button_id)
+    elif mode == "switch_page":
+        # Clear command settings
+        api.set_button_command(deck_id, page_id, button_id, "")
+        api.set_button_keys(deck_id, page_id, button_id, "")
+        api.set_button_write(deck_id, page_id, button_id, "")
+        # Detach plugin if attached
+        if api.get_button_plugin_id(deck_id, page_id, button_id):
+            api.detach_plugin_from_button(deck_id, page_id, button_id)
+    elif mode == "plugin":
+        # Clear command settings
+        api.set_button_command(deck_id, page_id, button_id, "")
+        api.set_button_keys(deck_id, page_id, button_id, "")
+        api.set_button_write(deck_id, page_id, button_id, "")
+        # Clear switch page settings
+        api.set_button_switch_page(deck_id, page_id, button_id, 0)
+        api.set_button_temp_switch_page(deck_id, page_id, button_id, 0)
+
+    # Apply visibility changes
+    _apply_button_mode_visibility(tab_ui, mode)
+
+    # Rebuild the form to reflect changes
+    build_button_state_form(tab_ui.parent().parent())
+
+
+def _apply_button_mode_visibility(tab_ui, mode):
+    """Show/hide fields based on the selected button mode."""
+    # Get the form layout
+    form_layout = tab_ui.formLayout
+
+    # Find widgets by their object name and hide/show based on mode
+    # Command mode fields
+    command_fields = [
+        (tab_ui.label_3, tab_ui.command),  # Command
+        (tab_ui.label_5, tab_ui.keys),      # Keys
+        (tab_ui.label_6, tab_ui.write),     # Write
+    ]
+
+    # Switch page fields
+    switch_page_fields = [
+        (tab_ui.label_8, tab_ui.switch_page),                    # Switch to Page
+        (tab_ui.label_temp_switch_page, tab_ui.temp_switch_page), # Temporary Switch to Page
+    ]
+
+    # Show/hide based on mode
+    for label, widget in command_fields:
+        visible = (mode == "command")
+        label.setVisible(visible)
+        widget.setVisible(visible)
+
+    for label, widget in switch_page_fields:
+        visible = (mode == "switch_page")
+        label.setVisible(visible)
+        widget.setVisible(visible)
+
+    # Show/hide plugin configuration group box
+    if hasattr(tab_ui, 'plugin_group'):
+        tab_ui.plugin_group.setVisible(mode == "plugin")
+
+
+def _build_plugin_configuration_ui(tab, tab_ui, deck_id, page_id, button_id, button_state_id):
+    """Build the plugin configuration UI section."""
+    from PySide6.QtWidgets import (
+        QGroupBox, QVBoxLayout, QComboBox, QLabel, QPushButton,
+        QLineEdit, QSpinBox, QCheckBox, QFileDialog, QScrollArea, QSizePolicy
+    )
+
+    # Create plugin group box
+    plugin_group = QGroupBox("Plugin Configuration")
+    plugin_layout = QVBoxLayout()
+
+    # Store reference to plugin widgets for later access
+    if not hasattr(tab, 'plugin_widgets'):
+        tab.plugin_widgets = {}
+
+    # Plugin selection dropdown
+    plugin_select_layout = QVBoxLayout()
+    plugin_select_label = QLabel("Select Plugin:")
+    plugin_select_combo = QComboBox()
+    plugin_select_combo.setObjectName("plugin_select")
+
+    # Add "None" option and discovered plugins
+    plugin_select_combo.addItem("(No Plugin)", "")
+    for plugin_id, manifest in api.plugin_manager.get_all_plugins().items():
+        plugin_select_combo.addItem(f"{manifest.name} v{manifest.version}", plugin_id)
+
+    # Set current selection
+    current_plugin_id = api.get_button_plugin_id(deck_id, page_id, button_id)
+    if current_plugin_id:
+        index = plugin_select_combo.findData(current_plugin_id)
+        if index >= 0:
+            plugin_select_combo.setCurrentIndex(index)
+
+    plugin_select_layout.addWidget(plugin_select_label)
+    plugin_select_layout.addWidget(plugin_select_combo)
+    plugin_layout.addLayout(plugin_select_layout)
+
+    # Plugin info label
+    plugin_info_label = QLabel()
+    plugin_info_label.setObjectName("plugin_info")
+    plugin_info_label.setWordWrap(True)
+    plugin_info_label.setStyleSheet("QLabel { color: #666; font-style: italic; }")
+    plugin_layout.addWidget(plugin_info_label)
+
+    # Configure/Detach buttons
+    button_layout = QVBoxLayout()
+    configure_button = QPushButton("Configure Plugin...")
+    configure_button.setObjectName("plugin_configure")
+    detach_button = QPushButton("Detach Plugin")
+    detach_button.setObjectName("plugin_detach")
+    button_layout.addWidget(configure_button)
+    button_layout.addWidget(detach_button)
+    plugin_layout.addLayout(button_layout)
+
+    plugin_group.setLayout(plugin_layout)
+
+    # Add plugin group to the main form layout
+    tab_ui.formLayout.addRow(plugin_group)
+
+    # Store references including the group box itself
+    tab.plugin_widgets = {
+        'group': plugin_group,
+        'select': plugin_select_combo,
+        'info': plugin_info_label,
+        'configure': configure_button,
+        'detach': detach_button,
+    }
+
+    # Also store reference in tab_ui for easier access
+    tab_ui.plugin_group = plugin_group
+
+    # Connect signals
+    plugin_select_combo.currentIndexChanged.connect(
+        lambda: _on_plugin_selected(tab, deck_id, page_id, button_id, button_state_id)
+    )
+    configure_button.clicked.connect(
+        lambda: _on_plugin_configure(tab, deck_id, page_id, button_id, button_state_id)
+    )
+    detach_button.clicked.connect(
+        lambda: _on_plugin_detach(tab, deck_id, page_id, button_id, button_state_id)
+    )
+
+    # Initialize the config form
+    _on_plugin_selected(tab, deck_id, page_id, button_id, button_state_id)
+
+
+def _on_plugin_selected(tab, deck_id, page_id, button_id, button_state_id):
+    """Handle plugin selection change."""
+    widgets = tab.plugin_widgets
+    plugin_combo = widgets['select']
+    plugin_id = plugin_combo.currentData()
+
+    if not plugin_id:
+        # No plugin selected
+        widgets['info'].setText("")
+        widgets['configure'].setEnabled(False)
+        widgets['detach'].setEnabled(False)
+        return
+
+    # Get plugin manifest
+    manifest = api.plugin_manager.get_plugin(plugin_id)
+    if not manifest:
+        widgets['info'].setText("Plugin not found!")
+        widgets['configure'].setEnabled(False)
+        widgets['detach'].setEnabled(False)
+        return
+
+    # Show plugin info
+    widgets['info'].setText(f"{manifest.description}")
+    widgets['configure'].setEnabled(True)
+
+    # Check if plugin is already attached
+    current_plugin_id = api.get_button_plugin_id(deck_id, page_id, button_id)
+    widgets['detach'].setEnabled(current_plugin_id == plugin_id)
+
+
+def _browse_file(line_edit, var_type):
+    """Open file browser dialog."""
+    from PySide6.QtWidgets import QFileDialog
+    from streamdeck_ui.plugin_system.schema import VariableType
+
+    if var_type == VariableType.DIR_PATH:
+        path = QFileDialog.getExistingDirectory(
+            main_window,
+            "Select Directory"
+        )
+    elif var_type == VariableType.CERTIFICATE:
+        path, _ = QFileDialog.getOpenFileName(
+            main_window,
+            "Select Certificate File",
+            "",
+            "Certificate Files (*.crt *.pem *.key *.cer);;All Files (*)"
+        )
+    else:  # FILE_PATH
+        path, _ = QFileDialog.getOpenFileName(
+            main_window,
+            "Select File"
+        )
+
+    if path:
+        line_edit.setText(path)
+
+
+def _on_plugin_configure(tab, deck_id, page_id, button_id, button_state_id):
+    """Open plugin configuration dialog."""
+    from PySide6.QtWidgets import (
+        QDialog, QVBoxLayout, QFormLayout, QDialogButtonBox,
+        QLabel, QLineEdit, QSpinBox, QCheckBox, QPushButton,
+        QHBoxLayout, QWidget, QScrollArea, QDoubleSpinBox, QMessageBox
+    )
+    from streamdeck_ui.plugin_system.schema import VariableType
+
+    widgets = tab.plugin_widgets
+    plugin_combo = widgets['select']
+    plugin_id = plugin_combo.currentData()
+
+    if not plugin_id:
+        QMessageBox.warning(main_window, "No Plugin", "Please select a plugin first.")
+        return
+
+    manifest = api.plugin_manager.get_plugin(plugin_id)
+    if not manifest:
+        QMessageBox.critical(main_window, "Error", "Plugin manifest not found.")
+        return
+
+    # Create dialog
+    dialog = QDialog(main_window)
+    dialog.setWindowTitle(f"Configure {manifest.name}")
+    dialog.setMinimumWidth(780)  # 30% wider than 600
+    dialog.setMinimumHeight(400)
+
+    layout = QVBoxLayout(dialog)
+
+    # Plugin description
+    desc_label = QLabel(manifest.description)
+    desc_label.setWordWrap(True)
+    desc_label.setStyleSheet("QLabel { font-style: italic; color: #666; padding: 10px; }")
+    layout.addWidget(desc_label)
+
+    # Scroll area for form
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll_widget = QWidget()
+    form_layout = QFormLayout(scroll_widget)
+    scroll.setWidget(scroll_widget)
+    layout.addWidget(scroll)
+
+    # Get current config
+    current_plugin_id = api.get_button_plugin_id(deck_id, page_id, button_id)
+    current_config = api.get_button_plugin_config(deck_id, page_id, button_id) if current_plugin_id == plugin_id else {}
+
+    # Build form
+    config_widgets = {}
+    for var in manifest.variables:
+        label_text = var.description
+        if var.required:
+            label_text += " *"
+        label = QLabel(label_text + ":")
+
+        current_value = current_config.get(var.name, var.default if var.default is not None else "")
+
+        # Create widget based on type
+        if var.type == VariableType.STRING or var.type == VariableType.URL:
+            widget = QLineEdit()
+            widget.setText(str(current_value))
+            if var.type == VariableType.URL:
+                widget.setPlaceholderText("https://...")
+        elif var.type == VariableType.PASSWORD:
+            widget = QLineEdit()
+            widget.setEchoMode(QLineEdit.EchoMode.Password)
+            widget.setText(str(current_value))
+        elif var.type == VariableType.INT:
+            widget = QSpinBox()
+            widget.setRange(-999999, 999999)
+            widget.setValue(int(current_value) if current_value else 0)
+        elif var.type == VariableType.FLOAT:
+            widget = QDoubleSpinBox()
+            widget.setRange(-999999.0, 999999.0)
+            widget.setValue(float(current_value) if current_value else 0.0)
+        elif var.type == VariableType.BOOL:
+            widget = QCheckBox()
+            widget.setChecked(bool(current_value))
+        elif var.type in (VariableType.FILE_PATH, VariableType.DIR_PATH, VariableType.CERTIFICATE):
+            container = QWidget()
+            hlayout = QHBoxLayout(container)
+            hlayout.setContentsMargins(0, 0, 0, 0)
+            widget = QLineEdit()
+            widget.setText(str(current_value))
+            browse_btn = QPushButton("Browse...")
+            browse_btn.clicked.connect(
+                lambda checked, w=widget, t=var.type: _browse_file(w, t)
+            )
+            hlayout.addWidget(widget)
+            hlayout.addWidget(browse_btn)
+            config_widgets[var.name] = widget
+            form_layout.addRow(label, container)
+            continue
+        else:
+            widget = QLineEdit()
+            widget.setText(str(current_value))
+
+        config_widgets[var.name] = widget
+        form_layout.addRow(label, widget)
+
+    # Page switch permission
+    if manifest.can_switch_page:
+        can_switch = QCheckBox("Allow plugin to switch pages")
+        can_switch.setChecked(api.get_button_plugin_can_switch_page(deck_id, page_id, button_id))
+        form_layout.addRow("", can_switch)
+        config_widgets['_can_switch'] = can_switch
+
+    # Dialog buttons
+    button_box = QDialogButtonBox(
+        QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+    )
+    button_box.accepted.connect(dialog.accept)
+    button_box.rejected.connect(dialog.reject)
+    layout.addWidget(button_box)
+
+    # Show dialog
+    if dialog.exec() == QDialog.DialogCode.Accepted:
+        # Collect config
+        config = {}
+        errors = []
+
+        for var in manifest.variables:
+            widget = config_widgets.get(var.name)
+            if not widget:
+                continue
+
+            # Get value
+            if isinstance(widget, QLineEdit):
+                value = widget.text()
+            elif isinstance(widget, QSpinBox):
+                value = widget.value()
+            elif isinstance(widget, QDoubleSpinBox):
+                value = widget.value()
+            elif isinstance(widget, QCheckBox):
+                value = widget.isChecked()
+            else:
+                value = ""
+
+            # Validate required
+            if var.required and not value and value != 0 and value is not False:
+                errors.append(f"{var.description} is required")
+                continue
+
+            # Store value
+            if value or value == 0 or value is False:
+                config[var.name] = value
+
+        if errors:
+            QMessageBox.warning(
+                dialog,
+                "Validation Error",
+                "Please fix the following errors:\n\n" + "\n".join(errors)
+            )
+            return
+
+        # Get page switch permission
+        can_switch_page = config_widgets.get('_can_switch').isChecked() if '_can_switch' in config_widgets else False
+
+        # Detach existing plugin if different
+        if current_plugin_id and current_plugin_id != plugin_id:
+            api.detach_plugin_from_button(deck_id, page_id, button_id)
+
+        # Attach plugin
+        success = api.attach_plugin_to_button(
+            deck_id, page_id, button_id, plugin_id, config, can_switch_page
+        )
+
+        if success:
+            QMessageBox.information(
+                main_window,
+                "Success",
+                f"Plugin '{manifest.name}' applied successfully!"
+            )
+            widgets['detach'].setEnabled(True)
+        else:
+            QMessageBox.critical(
+                main_window,
+                "Error",
+                "Failed to apply plugin. Check logs for details."
+            )
+
+
+def _on_plugin_detach(tab, deck_id, page_id, button_id, button_state_id):
+    """Detach plugin from button."""
+    from PySide6.QtWidgets import QMessageBox
+
+    reply = QMessageBox.question(
+        main_window,
+        "Confirm Detach",
+        "Are you sure you want to detach the plugin from this button?",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+    )
+
+    if reply == QMessageBox.StandardButton.Yes:
+        api.detach_plugin_from_button(deck_id, page_id, button_id)
+
+        # Reset UI
+        widgets = tab.plugin_widgets
+        widgets['select'].setCurrentIndex(0)
+        widgets['detach'].setEnabled(False)
+
+        QMessageBox.information(
+            main_window,
+            "Success",
+            "Plugin detached successfully."
+        )
 
 
 def enable_button_configuration(ui: Ui_ButtonForm, enabled: bool):
@@ -1378,6 +1846,7 @@ def configure_signals(app: QApplication, cli: CLIStreamDeckServer):
 
 def sigterm_handler(app, cli, signal_value, frame):
     print("Received signal", signal_value, frame)
+    api.shutdown()  # Shutdown plugins and cleanup
     api.stop()
     cli.stop()
     app.quit()

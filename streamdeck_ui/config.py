@@ -187,6 +187,9 @@ def _to_button_state(button: dict) -> ButtonState:
         font_color=button.get("font_color", ""),
         font_size=button.get("font_size", 0),
         background_color=button.get("background_color", ""),
+        plugin_id=button.get("plugin_id", ""),
+        plugin_config=button.get("plugin_config", {}),
+        plugin_can_switch_page=button.get("plugin_can_switch_page", False),
     )
 
 
@@ -234,6 +237,9 @@ def _to_button_config(button: ButtonState) -> dict:
         "font_color": button.font_color,
         "font_size": button.font_size,
         "background_color": button.background_color,
+        "plugin_id": button.plugin_id,
+        "plugin_config": button.plugin_config,
+        "plugin_can_switch_page": button.plugin_can_switch_page,
     }
 
 
