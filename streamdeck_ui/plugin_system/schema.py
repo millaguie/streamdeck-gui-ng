@@ -9,6 +9,7 @@ import yaml
 
 class VariableType(Enum):
     """Supported variable types for plugin configuration."""
+
     STRING = "string"
     INT = "int"
     FLOAT = "float"
@@ -22,6 +23,7 @@ class VariableType(Enum):
 
 class LifecycleMode(Enum):
     """Plugin lifecycle modes."""
+
     ALWAYS_RUNNING = "always_running"  # Plugin starts with app and always runs
     ON_VISIBLE = "on_visible"  # Plugin starts only when button is visible
     ON_DEMAND = "on_demand"  # Plugin can be called when needed (future)
@@ -30,6 +32,7 @@ class LifecycleMode(Enum):
 @dataclass
 class PluginVariable:
     """Definition of a configurable variable in a plugin."""
+
     name: str
     type: VariableType
     description: str
@@ -39,22 +42,22 @@ class PluginVariable:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
-            'name': self.name,
-            'type': self.type.value,
-            'description': self.description,
-            'required': self.required,
-            'default': self.default,
+            "name": self.name,
+            "type": self.type.value,
+            "description": self.description,
+            "required": self.required,
+            "default": self.default,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'PluginVariable':
+    def from_dict(cls, data: Dict[str, Any]) -> "PluginVariable":
         """Create from dictionary."""
         return cls(
-            name=data['name'],
-            type=VariableType(data['type']),
-            description=data['description'],
-            required=data.get('required', True),
-            default=data.get('default'),
+            name=data["name"],
+            type=VariableType(data["type"]),
+            description=data["description"],
+            required=data.get("required", True),
+            default=data.get("default"),
         )
 
 
@@ -92,50 +95,50 @@ class PluginManifest:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
-            'name': self.name,
-            'version': self.version,
-            'description': self.description,
-            'author': self.author,
-            'entry_point': self.entry_point,
-            'lifecycle_mode': self.lifecycle_mode.value,
-            'variables': [v.to_dict() for v in self.variables],
-            'can_switch_page': self.can_switch_page,
-            'max_retries': self.max_retries,
-            'retry_delay': self.retry_delay,
-            'homepage': self.homepage,
-            'license': self.license,
-            'icon': self.icon,
+            "name": self.name,
+            "version": self.version,
+            "description": self.description,
+            "author": self.author,
+            "entry_point": self.entry_point,
+            "lifecycle_mode": self.lifecycle_mode.value,
+            "variables": [v.to_dict() for v in self.variables],
+            "can_switch_page": self.can_switch_page,
+            "max_retries": self.max_retries,
+            "retry_delay": self.retry_delay,
+            "homepage": self.homepage,
+            "license": self.license,
+            "icon": self.icon,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'PluginManifest':
+    def from_dict(cls, data: Dict[str, Any]) -> "PluginManifest":
         """Create from dictionary."""
         return cls(
-            name=data['name'],
-            version=data['version'],
-            description=data['description'],
-            author=data['author'],
-            entry_point=data['entry_point'],
-            lifecycle_mode=LifecycleMode(data.get('lifecycle_mode', 'always_running')),
-            variables=[PluginVariable.from_dict(v) for v in data.get('variables', [])],
-            can_switch_page=data.get('can_switch_page', False),
-            max_retries=data.get('max_retries', 3),
-            retry_delay=data.get('retry_delay', 5),
-            homepage=data.get('homepage'),
-            license=data.get('license'),
-            icon=data.get('icon'),
+            name=data["name"],
+            version=data["version"],
+            description=data["description"],
+            author=data["author"],
+            entry_point=data["entry_point"],
+            lifecycle_mode=LifecycleMode(data.get("lifecycle_mode", "always_running")),
+            variables=[PluginVariable.from_dict(v) for v in data.get("variables", [])],
+            can_switch_page=data.get("can_switch_page", False),
+            max_retries=data.get("max_retries", 3),
+            retry_delay=data.get("retry_delay", 5),
+            homepage=data.get("homepage"),
+            license=data.get("license"),
+            icon=data.get("icon"),
         )
 
     @classmethod
-    def load_from_file(cls, manifest_path: str) -> 'PluginManifest':
+    def load_from_file(cls, manifest_path: str) -> "PluginManifest":
         """Load manifest from YAML file."""
-        with open(manifest_path, 'r') as f:
+        with open(manifest_path, "r") as f:
             data = yaml.safe_load(f)
         return cls.from_dict(data)
 
     def save_to_file(self, manifest_path: str) -> None:
         """Save manifest to YAML file."""
-        with open(manifest_path, 'w') as f:
+        with open(manifest_path, "w") as f:
             yaml.dump(self.to_dict(), f, default_flow_style=False, sort_keys=False)
 
     def validate(self) -> List[str]:

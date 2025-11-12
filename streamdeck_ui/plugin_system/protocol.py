@@ -32,6 +32,7 @@ class MessageType(Enum):
 
 class LogLevel(Enum):
     """Log levels for plugin logging."""
+
     DEBUG = "debug"
     INFO = "info"
     WARNING = "warning"
@@ -41,42 +42,46 @@ class LogLevel(Enum):
 @dataclass
 class ProtocolMessage:
     """Base protocol message structure."""
+
     type: MessageType
     payload: Dict[str, Any]
     message_id: Optional[str] = None  # For tracking request/response
 
     def to_json(self) -> str:
         """Serialize message to JSON."""
-        return json.dumps({
-            'type': self.type.value,
-            'payload': self.payload,
-            'message_id': self.message_id,
-        })
+        return json.dumps(
+            {
+                "type": self.type.value,
+                "payload": self.payload,
+                "message_id": self.message_id,
+            }
+        )
 
     @classmethod
-    def from_json(cls, json_str: str) -> 'ProtocolMessage':
+    def from_json(cls, json_str: str) -> "ProtocolMessage":
         """Deserialize message from JSON."""
         data = json.loads(json_str)
         return cls(
-            type=MessageType(data['type']),
-            payload=data['payload'],
-            message_id=data.get('message_id'),
+            type=MessageType(data["type"]),
+            payload=data["payload"],
+            message_id=data.get("message_id"),
         )
 
     def to_bytes(self) -> bytes:
         """Convert to bytes for socket transmission."""
         json_str = self.to_json()
         # Length-prefixed message: 4 bytes for length + JSON data
-        length = len(json_str.encode('utf-8'))
-        return length.to_bytes(4, byteorder='big') + json_str.encode('utf-8')
+        length = len(json_str.encode("utf-8"))
+        return length.to_bytes(4, byteorder="big") + json_str.encode("utf-8")
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> 'ProtocolMessage':
+    def from_bytes(cls, data: bytes) -> "ProtocolMessage":
         """Parse from bytes."""
-        return cls.from_json(data.decode('utf-8'))
+        return cls.from_json(data.decode("utf-8"))
 
 
 # Convenience functions for creating common messages
+
 
 def create_button_pressed_message() -> ProtocolMessage:
     """Create button pressed message."""
@@ -98,7 +103,7 @@ def create_button_visible_message(page: int, button: int) -> ProtocolMessage:
     """Create button visible message."""
     return ProtocolMessage(
         type=MessageType.BUTTON_VISIBLE,
-        payload={'page': page, 'button': button},
+        payload={"page": page, "button": button},
     )
 
 
@@ -114,7 +119,7 @@ def create_config_update_message(config: Dict[str, Any]) -> ProtocolMessage:
     """Create config update message."""
     return ProtocolMessage(
         type=MessageType.CONFIG_UPDATE,
-        payload={'config': config},
+        payload={"config": config},
     )
 
 
@@ -134,11 +139,12 @@ def create_update_image_raw_message(image_data: bytes, format: str = "PNG") -> P
         format: Image format (PNG, JPEG, etc.)
     """
     import base64
+
     return ProtocolMessage(
         type=MessageType.UPDATE_IMAGE_RAW,
         payload={
-            'image_data': base64.b64encode(image_data).decode('utf-8'),
-            'format': format,
+            "image_data": base64.b64encode(image_data).decode("utf-8"),
+            "format": format,
         },
     )
 
@@ -155,19 +161,19 @@ def create_update_image_render_message(
     """Create update image render message with rendering instructions."""
     payload = {}
     if text is not None:
-        payload['text'] = text
+        payload["text"] = text
     if icon is not None:
-        payload['icon'] = icon
+        payload["icon"] = icon
     if background_color is not None:
-        payload['background_color'] = background_color
+        payload["background_color"] = background_color
     if font_color is not None:
-        payload['font_color'] = font_color
+        payload["font_color"] = font_color
     if font_size is not None:
-        payload['font_size'] = font_size
+        payload["font_size"] = str(font_size)
     if text_vertical_align is not None:
-        payload['text_vertical_align'] = text_vertical_align
+        payload["text_vertical_align"] = text_vertical_align
     if text_horizontal_align is not None:
-        payload['text_horizontal_align'] = text_horizontal_align
+        payload["text_horizontal_align"] = text_horizontal_align
 
     return ProtocolMessage(
         type=MessageType.UPDATE_IMAGE_RENDER,
@@ -183,7 +189,7 @@ def create_request_page_switch_message(duration: Optional[int] = None) -> Protoc
     """
     return ProtocolMessage(
         type=MessageType.REQUEST_PAGE_SWITCH,
-        payload={'duration': duration} if duration is not None else {},
+        payload={"duration": duration} if duration is not None else {},
     )
 
 
@@ -191,7 +197,7 @@ def create_log_message(level: LogLevel, message: str) -> ProtocolMessage:
     """Create log message."""
     return ProtocolMessage(
         type=MessageType.LOG_MESSAGE,
-        payload={'level': level.value, 'message': message},
+        payload={"level": level.value, "message": message},
     )
 
 
@@ -213,9 +219,9 @@ def create_ready_message() -> ProtocolMessage:
 
 def create_error_message(error: str, details: Optional[str] = None) -> ProtocolMessage:
     """Create error message."""
-    payload = {'error': error}
+    payload = {"error": error}
     if details:
-        payload['details'] = details
+        payload["details"] = details
     return ProtocolMessage(
         type=MessageType.ERROR,
         payload=payload,

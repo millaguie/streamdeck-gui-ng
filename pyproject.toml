@@ -43,6 +43,10 @@ bandit = "^1.7.5"
 safety = "^3.7.0"
 isort = "^5.12.0"
 
+
+[tool.poetry.group.dev.dependencies]
+types-pyyaml = "^6.0.12.20250915"
+
 [tool.poetry.scripts]
 streamdeck = "streamdeck_ui.gui:start"
 streamdeckc = "streamdeck_ui.cli.server:execute"

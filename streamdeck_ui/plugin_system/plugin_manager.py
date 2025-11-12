@@ -17,7 +17,6 @@ from PIL import Image
 from .protocol import MessageType, ProtocolMessage
 from .schema import LifecycleMode, PluginManifest
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +64,7 @@ class PluginInstance:
         self.client_socket: Optional[socket.socket] = None
         self.running = False
         self.retry_count = 0
-        self.last_heartbeat = 0
+        self.last_heartbeat: float = 0.0
 
         # Callbacks
         self.on_image_update: Optional[Callable[[str, int, int, Any], None]] = None
@@ -89,25 +88,27 @@ class PluginInstance:
             # Start plugin process
             entry_point = self.plugin_dir / self.manifest.entry_point
             env = os.environ.copy()
-            env['STREAMDECK_PLUGIN_SOCKET'] = self.socket_path
+            env["STREAMDECK_PLUGIN_SOCKET"] = self.socket_path
 
             import json
+
             config_json = json.dumps(self.config)
-            env['STREAMDECK_PLUGIN_CONFIG'] = config_json
+            env["STREAMDECK_PLUGIN_CONFIG"] = config_json
 
             self.process = subprocess.Popen(
-                ['python3', str(entry_point), self.socket_path, config_json],
+                ["python3", str(entry_point), self.socket_path, config_json],
                 env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
 
-            logger.info(
-                f"Started plugin {self.plugin_id} instance {self.instance_id} "
-                f"(PID: {self.process.pid})"
-            )
+            logger.info(f"Started plugin {self.plugin_id} instance {self.instance_id} " f"(PID: {self.process.pid})")
 
             # Wait for plugin to connect (with timeout)
+            if self.socket is None:
+                logger.error(f"Socket is None for plugin {self.instance_id}")
+                return False
+
             self.socket.settimeout(10.0)
             try:
                 self.client_socket, _ = self.socket.accept()
@@ -139,9 +140,7 @@ class PluginInstance:
         # Send shutdown message
         if self.client_socket:
             try:
-                self._send_message(
-                    ProtocolMessage(type=MessageType.SHUTDOWN, payload={})
-                )
+                self._send_message(ProtocolMessage(type=MessageType.SHUTDOWN, payload={}))
             except Exception:
                 pass
 
@@ -171,30 +170,24 @@ class PluginInstance:
 
     def send_button_pressed(self) -> None:
         """Notify plugin that button was pressed."""
-        self._send_message(
-            ProtocolMessage(type=MessageType.BUTTON_PRESSED, payload={})
-        )
+        self._send_message(ProtocolMessage(type=MessageType.BUTTON_PRESSED, payload={}))
 
     def send_button_released(self) -> None:
         """Notify plugin that button was released."""
-        self._send_message(
-            ProtocolMessage(type=MessageType.BUTTON_RELEASED, payload={})
-        )
+        self._send_message(ProtocolMessage(type=MessageType.BUTTON_RELEASED, payload={}))
 
     def send_button_visible(self) -> None:
         """Notify plugin that button is now visible."""
         self._send_message(
             ProtocolMessage(
                 type=MessageType.BUTTON_VISIBLE,
-                payload={'page': self.page, 'button': self.button},
+                payload={"page": self.page, "button": self.button},
             )
         )
 
     def send_button_hidden(self) -> None:
         """Notify plugin that button is now hidden."""
-        self._send_message(
-            ProtocolMessage(type=MessageType.BUTTON_HIDDEN, payload={})
-        )
+        self._send_message(ProtocolMessage(type=MessageType.BUTTON_HIDDEN, payload={}))
 
     def send_config_update(self, config: Dict[str, Any]) -> None:
         """Send updated configuration to plugin."""
@@ -202,7 +195,7 @@ class PluginInstance:
         self._send_message(
             ProtocolMessage(
                 type=MessageType.CONFIG_UPDATE,
-                payload={'config': config},
+                payload={"config": config},
             )
         )
 
@@ -219,7 +212,7 @@ class PluginInstance:
     def _create_socket(self) -> str:
         """Create Unix socket for communication."""
         # Create temporary socket file
-        fd, socket_path = tempfile.mkstemp(prefix=f'streamdeck_plugin_{self.instance_id}_')
+        fd, socket_path = tempfile.mkstemp(prefix=f"streamdeck_plugin_{self.instance_id}_")
         os.close(fd)
         os.unlink(socket_path)
 
@@ -253,7 +246,7 @@ class PluginInstance:
             if not length_data:
                 return None
 
-            length = int.from_bytes(length_data, byteorder='big')
+            length = int.from_bytes(length_data, byteorder="big")
 
             # Read message data
             message_data = self._recv_exact(length)
@@ -268,7 +261,9 @@ class PluginInstance:
 
     def _recv_exact(self, n: int) -> Optional[bytes]:
         """Receive exactly n bytes from socket."""
-        data = b''
+        if self.client_socket is None:
+            return None
+        data = b""
         while len(data) < n:
             chunk = self.client_socket.recv(n - len(data))
             if not chunk:
@@ -314,15 +309,13 @@ class PluginInstance:
             elif message.type == MessageType.READY:
                 logger.info(f"Plugin {self.instance_id} is ready")
             elif message.type == MessageType.ERROR:
-                error = message.payload.get('error')
-                details = message.payload.get('details')
+                error = message.payload.get("error")
+                details = message.payload.get("details")
                 logger.error(f"Plugin {self.instance_id} error: {error}")
                 if details:
                     logger.error(f"Details: {details}")
             else:
-                logger.warning(
-                    f"Unknown message type from plugin {self.instance_id}: {message.type}"
-                )
+                logger.warning(f"Unknown message type from plugin {self.instance_id}: {message.type}")
 
         except Exception as e:
             logger.error(f"Error handling message from plugin {self.instance_id}: {e}")
@@ -333,18 +326,27 @@ class PluginInstance:
             return
 
         try:
-            image_data_b64 = message.payload.get('image_data')
-            image_format = message.payload.get('format', 'PNG')
+            image_data_b64 = message.payload.get("image_data")
+            image_format = message.payload.get("format", "PNG")
+
+            if not image_data_b64:
+                logger.error("No image data in message")
+                return
 
             # Decode base64 image
             image_data = base64.b64decode(image_data_b64)
             image = Image.open(BytesIO(image_data))
 
-            self.on_image_update(self.deck_serial, self.page, self.button, {
-                'type': 'raw',
-                'image': image,
-                'format': image_format,
-            })
+            self.on_image_update(
+                self.deck_serial,
+                self.page,
+                self.button,
+                {
+                    "type": "raw",
+                    "image": image,
+                    "format": image_format,
+                },
+            )
 
         except Exception as e:
             logger.error(f"Failed to handle raw image update: {e}")
@@ -355,10 +357,15 @@ class PluginInstance:
             return
 
         try:
-            self.on_image_update(self.deck_serial, self.page, self.button, {
-                'type': 'render',
-                'instructions': message.payload,
-            })
+            self.on_image_update(
+                self.deck_serial,
+                self.page,
+                self.button,
+                {
+                    "type": "render",
+                    "instructions": message.payload,
+                },
+            )
 
         except Exception as e:
             logger.error(f"Failed to handle render update: {e}")
@@ -369,13 +376,11 @@ class PluginInstance:
             return
 
         if not self.can_switch_page:
-            logger.warning(
-                f"Plugin {self.instance_id} requested page switch but permission denied"
-            )
+            logger.warning(f"Plugin {self.instance_id} requested page switch but permission denied")
             return
 
         try:
-            duration = message.payload.get('duration')
+            duration = message.payload.get("duration")
             self.on_page_switch_request(self.deck_serial, self.page, self.button, duration)
 
         except Exception as e:
@@ -387,8 +392,8 @@ class PluginInstance:
             return
 
         try:
-            level = message.payload.get('level', 'info')
-            log_message = message.payload.get('message', '')
+            level = message.payload.get("level", "info")
+            log_message = message.payload.get("message", "")
             self.on_log_message(level, log_message)
 
         except Exception as e:
@@ -420,7 +425,7 @@ class PluginManager:
             if not plugin_dir.is_dir():
                 continue
 
-            manifest_path = plugin_dir / 'manifest.yaml'
+            manifest_path = plugin_dir / "manifest.yaml"
             if not manifest_path.exists():
                 logger.warning(f"No manifest.yaml found in {plugin_dir}")
                 continue
@@ -543,17 +548,11 @@ class PluginManager:
         """Get plugin instance by ID."""
         return self.instances.get(instance_id)
 
-    def get_instances_for_button(
-        self, deck_serial: str, page: int, button: int
-    ) -> list[PluginInstance]:
+    def get_instances_for_button(self, deck_serial: str, page: int, button: int) -> list[PluginInstance]:
         """Get all plugin instances for a specific button."""
         result = []
         for instance in self.instances.values():
-            if (
-                instance.deck_serial == deck_serial
-                and instance.page == page
-                and instance.button == button
-            ):
+            if instance.deck_serial == deck_serial and instance.page == page and instance.button == button:
                 result.append(instance)
         return result
 
@@ -583,9 +582,7 @@ class PluginManager:
                         time.sleep(instance.manifest.retry_delay)
                         instance.start()
                     else:
-                        logger.error(
-                            f"Plugin {instance.instance_id} exceeded max retries, giving up"
-                        )
+                        logger.error(f"Plugin {instance.instance_id} exceeded max retries, giving up")
                         instance.running = False
 
                 # Check if responsive

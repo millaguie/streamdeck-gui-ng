@@ -105,14 +105,12 @@ class StreamDeckServer:
         self.plugevents = StreamDeckSignalEmitter()
 
         # Initialize plugin manager
-        plugins_dir = Path.home() / '.streamdeck_ui' / 'plugins'
+        plugins_dir = Path.home() / ".streamdeck_ui" / "plugins"
         self.plugin_manager = PluginManager(plugins_dir)
         self.plugin_manager.discover_plugins()
 
         # Start plugin monitor thread
-        self.plugin_monitor_thread = threading.Thread(
-            target=self.plugin_manager.monitor_instances, daemon=True
-        )
+        self.plugin_monitor_thread = threading.Thread(target=self.plugin_manager.monitor_instances, daemon=True)
         self.plugin_monitor_thread.start()
 
     def shutdown(self) -> None:
@@ -776,7 +774,7 @@ class StreamDeckServer:
             filters.append(ImageFilter(button_settings.icon))
 
         if button_settings.text:
-            font_size = button_settings.font_size or DEFAULT_FONT_SIZE
+            font_size = int(button_settings.font_size) if button_settings.font_size else DEFAULT_FONT_SIZE
             font_color = button_settings.font_color or DEFAULT_FONT_COLOR
             font = button_settings.font or DEFAULT_FONT
             # if font is not absolute means a default font, prefix it
@@ -807,6 +805,8 @@ class StreamDeckServer:
         Args:
             serial_number: Stream Deck serial number
         """
+        assert self.plugin_manager is not None, "Plugin manager must be initialized"
+
         if serial_number not in self.state:
             return
 
@@ -850,19 +850,14 @@ class StreamDeckServer:
 
                                     # If button is on current page, notify plugin it's visible
                                     current_page = self.get_page(serial_number)
-                                    if current_page == page:
+                                    if current_page == page and instance:
                                         instance.send_button_visible()
                                 else:
                                     logger.error(f"Failed to start restored plugin instance {instance_id}")
                             else:
-                                logger.error(
-                                    f"Failed to create plugin instance for {button_state.plugin_id}"
-                                )
+                                logger.error(f"Failed to create plugin instance for {button_state.plugin_id}")
                         except Exception as e:
-                            logger.error(
-                                f"Error restoring plugin {button_state.plugin_id}: {e}",
-                                exc_info=True
-                            )
+                            logger.error(f"Error restoring plugin {button_state.plugin_id}: {e}", exc_info=True)
 
     def get_button_plugin_id(self, serial_number: str, page: int, button: int) -> str:
         """Get the plugin ID for a button."""
@@ -883,10 +878,10 @@ class StreamDeckServer:
         button_settings = self.get_button_state_object(serial_number, page, button, state)
         return button_settings.plugin_config
 
-    def set_button_plugin_config(
-        self, serial_number: str, page: int, button: int, config: Dict[str, Any]
-    ) -> None:
+    def set_button_plugin_config(self, serial_number: str, page: int, button: int, config: Dict[str, Any]) -> None:
         """Set the plugin configuration for a button."""
+        assert self.plugin_manager is not None
+
         state = self.get_button_state(serial_number, page, button)
         button_settings = self.get_button_state_object(serial_number, page, button, state)
         button_settings.plugin_config = config
@@ -904,9 +899,7 @@ class StreamDeckServer:
         button_settings = self.get_button_state_object(serial_number, page, button, state)
         return button_settings.plugin_can_switch_page
 
-    def set_button_plugin_can_switch_page(
-        self, serial_number: str, page: int, button: int, can_switch: bool
-    ) -> None:
+    def set_button_plugin_can_switch_page(self, serial_number: str, page: int, button: int, can_switch: bool) -> None:
         """Set whether the plugin can switch pages."""
         state = self.get_button_state(serial_number, page, button)
         button_settings = self.get_button_state_object(serial_number, page, button, state)
@@ -935,6 +928,7 @@ class StreamDeckServer:
         Returns:
             True if successful
         """
+        assert self.plugin_manager is not None
         # Check if an instance already exists for this button
         instance_id = f"{plugin_id}_{serial_number}_{page}_{button}"
         existing_instance = self.plugin_manager.get_instance(instance_id)
@@ -953,7 +947,7 @@ class StreamDeckServer:
         self.set_button_plugin_can_switch_page(serial_number, page, button, can_switch_page)
 
         # Create and start plugin instance
-        instance_id = self.plugin_manager.create_instance(
+        instance_id_result = self.plugin_manager.create_instance(
             plugin_id=plugin_id,
             deck_serial=serial_number,
             page=page,
@@ -962,32 +956,33 @@ class StreamDeckServer:
             can_switch_page=can_switch_page,
         )
 
-        if not instance_id:
+        if not instance_id_result:
             logger.error(f"Failed to create plugin instance for {plugin_id}")
             return False
 
         # Set up callbacks
-        instance = self.plugin_manager.get_instance(instance_id)
+        instance = self.plugin_manager.get_instance(instance_id_result)
         if instance:
             instance.on_image_update = self._handle_plugin_image_update
             instance.on_page_switch_request = self._handle_plugin_page_switch
             instance.on_log_message = self._handle_plugin_log_message
 
         # Start the plugin
-        success = self.plugin_manager.start_instance(instance_id)
+        success = self.plugin_manager.start_instance(instance_id_result)
         if not success:
-            logger.error(f"Failed to start plugin instance {instance_id}")
+            logger.error(f"Failed to start plugin instance {instance_id_result}")
             return False
 
         # If button is currently visible, notify plugin
         current_page = self.get_page(serial_number)
-        if current_page == page:
+        if current_page == page and instance:
             instance.send_button_visible()
 
         return True
 
     def detach_plugin_from_button(self, serial_number: str, page: int, button: int) -> None:
         """Detach a plugin from a button and stop it."""
+        assert self.plugin_manager is not None
         plugin_id = self.get_button_plugin_id(serial_number, page, button)
         if not plugin_id:
             return
@@ -1006,54 +1001,59 @@ class StreamDeckServer:
     ) -> None:
         """Handle image update request from plugin."""
         try:
-            if update_data['type'] == 'raw':
+            if update_data["type"] == "raw":
                 # Handle raw image data
-                image: Image.Image = update_data['image']
+                image: Image.Image = update_data["image"]
                 # Convert to appropriate format and update display
                 display_handler = self.display_handlers.get(deck_serial)
                 if display_handler:
                     # Create a temporary filter with the image
-                    from streamdeck_ui.display.image_filter import ImageFilter
                     import tempfile
 
+                    from streamdeck_ui.display.image_filter import ImageFilter
+
                     # Save image to temp file
-                    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
-                        image.save(f, 'PNG')
+                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+                        image.save(f, "PNG")
                         temp_path = f.name
 
                     # Update filters with the new image
-                    filters = [ImageFilter(temp_path)]
+                    from streamdeck_ui.display.filter import Filter
+
+                    filters: list[Filter] = [ImageFilter(temp_path)]
                     display_handler.replace(page, button, filters)
 
                     # Clean up temp file after a delay (let the filter load it first)
                     import time
+
                     def cleanup():
                         time.sleep(1)
                         os.unlink(temp_path)
+
                     threading.Thread(target=cleanup, daemon=True).start()
 
-            elif update_data['type'] == 'render':
+            elif update_data["type"] == "render":
                 # Handle render instructions
-                instructions = update_data['instructions']
+                instructions = update_data["instructions"]
 
                 # Update button state with new rendering instructions
                 state = self.get_button_state(deck_serial, page, button)
                 button_state = self.get_button_state_object(deck_serial, page, button, state)
 
-                if 'text' in instructions:
-                    button_state.text = instructions['text']
-                if 'icon' in instructions:
-                    button_state.icon = instructions['icon']
-                if 'background_color' in instructions:
-                    button_state.background_color = instructions['background_color']
-                if 'font_color' in instructions:
-                    button_state.font_color = instructions['font_color']
-                if 'font_size' in instructions:
-                    button_state.font_size = instructions['font_size']
-                if 'text_vertical_align' in instructions:
-                    button_state.text_vertical_align = instructions['text_vertical_align']
-                if 'text_horizontal_align' in instructions:
-                    button_state.text_horizontal_align = instructions['text_horizontal_align']
+                if "text" in instructions:
+                    button_state.text = instructions["text"]
+                if "icon" in instructions:
+                    button_state.icon = instructions["icon"]
+                if "background_color" in instructions:
+                    button_state.background_color = instructions["background_color"]
+                if "font_color" in instructions:
+                    button_state.font_color = instructions["font_color"]
+                if "font_size" in instructions:
+                    button_state.font_size = instructions["font_size"]
+                if "text_vertical_align" in instructions:
+                    button_state.text_vertical_align = instructions["text_vertical_align"]
+                if "text_horizontal_align" in instructions:
+                    button_state.text_horizontal_align = instructions["text_horizontal_align"]
 
                 # Update filters
                 self._update_button_filters(deck_serial, page, button)
@@ -1061,9 +1061,7 @@ class StreamDeckServer:
         except Exception as e:
             logger.error(f"Error handling plugin image update: {e}", exc_info=True)
 
-    def _handle_plugin_page_switch(
-        self, deck_serial: str, page: int, button: int, duration: Optional[int]
-    ) -> None:
+    def _handle_plugin_page_switch(self, deck_serial: str, page: int, button: int, duration: Optional[int]) -> None:
         """Handle page switch request from plugin."""
         try:
             if duration:
@@ -1086,10 +1084,10 @@ class StreamDeckServer:
     def _handle_plugin_log_message(self, level: str, message: str) -> None:
         """Handle log message from plugin."""
         log_level_map = {
-            'debug': logging.DEBUG,
-            'info': logging.INFO,
-            'warning': logging.WARNING,
-            'error': logging.ERROR,
+            "debug": logging.DEBUG,
+            "info": logging.INFO,
+            "warning": logging.WARNING,
+            "error": logging.ERROR,
         }
         logger.log(log_level_map.get(level, logging.INFO), f"Plugin: {message}")
 
@@ -1102,6 +1100,7 @@ class StreamDeckServer:
             button: Button number
             pressed: True if pressed, False if released
         """
+        assert self.plugin_manager is not None
         instances = self.plugin_manager.get_instances_for_button(serial_number, page, button)
         for instance in instances:
             if pressed:
@@ -1117,6 +1116,7 @@ class StreamDeckServer:
             old_page: Previous page number
             new_page: New page number
         """
+        assert self.plugin_manager is not None
         # Notify plugins on old page that they're now hidden
         for instance in self.plugin_manager.instances.values():
             if instance.deck_serial == serial_number and instance.page == old_page:

@@ -49,9 +49,7 @@ class BasePlugin(ABC):
         logger = logging.getLogger(self.__class__.__name__)
         logger.setLevel(logging.DEBUG)
         handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(
-            logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        )
+        handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
         logger.addHandler(handler)
         return logger
 
@@ -105,7 +103,7 @@ class BasePlugin(ABC):
         if not length_data:
             return None
 
-        length = int.from_bytes(length_data, byteorder='big')
+        length = int.from_bytes(length_data, byteorder="big")
 
         # Read message data
         message_data = self._recv_exact(length)
@@ -116,7 +114,9 @@ class BasePlugin(ABC):
 
     def _recv_exact(self, n: int) -> Optional[bytes]:
         """Receive exactly n bytes from socket."""
-        data = b''
+        if self.socket is None:
+            return None
+        data = b""
         while len(data) < n:
             chunk = self.socket.recv(n - len(data))
             if not chunk:
@@ -221,13 +221,13 @@ class BasePlugin(ABC):
             elif message.type == MessageType.BUTTON_RELEASED:
                 self.on_button_released()
             elif message.type == MessageType.BUTTON_VISIBLE:
-                page = message.payload.get('page')
-                button = message.payload.get('button')
-                self.on_button_visible(page, button)
+                page = message.payload.get("page", 0)
+                button = message.payload.get("button", 0)
+                self.on_button_visible(int(page), int(button))
             elif message.type == MessageType.BUTTON_HIDDEN:
                 self.on_button_hidden()
             elif message.type == MessageType.CONFIG_UPDATE:
-                config = message.payload.get('config', {})
+                config = message.payload.get("config", {})
                 self.config = config
                 self.on_config_update(config)
             elif message.type == MessageType.SHUTDOWN:
@@ -235,9 +235,9 @@ class BasePlugin(ABC):
                 self.running = False
                 self.on_shutdown()
             elif message.type == MessageType.ERROR:
-                error = message.payload.get('error')
-                details = message.payload.get('details')
-                self.on_error(error, details)
+                error = message.payload.get("error", "")
+                details = message.payload.get("details")
+                self.on_error(str(error), details)
             else:
                 self.logger.warning(f"Unknown message type: {message.type}")
         except Exception as e:
@@ -279,7 +279,7 @@ class BasePlugin(ABC):
         """Called when button is no longer visible."""
         pass
 
-    def on_config_update(self, config: Dict[str, Any]) -> None:
+    def on_config_update(self, config: Dict[str, Any]) -> None:  # noqa: B027
         """Called when configuration is updated.
 
         Default implementation does nothing. Override if needed.
@@ -289,7 +289,7 @@ class BasePlugin(ABC):
         """
         pass
 
-    def on_shutdown(self) -> None:
+    def on_shutdown(self) -> None:  # noqa: B027
         """Called when plugin should shut down.
 
         Default implementation does nothing. Override for cleanup.
@@ -327,7 +327,7 @@ class BasePlugin(ABC):
             self.send_ready()
             self.on_start()
 
-            last_heartbeat = 0
+            last_heartbeat: float = 0.0
             import time
 
             while self.running:
