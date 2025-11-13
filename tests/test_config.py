@@ -33,6 +33,9 @@ TEST_CONFIG_STATE = {
                             "font_color": "",
                             "font_size": 0,
                             "background_color": "",
+                            "plugin_id": "",
+                            "plugin_config": {},
+                            "plugin_can_switch_page": False,
                         }
                     },
                 }
