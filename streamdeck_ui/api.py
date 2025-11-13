@@ -1,11 +1,15 @@
 """Defines the Python API for interacting with the StreamDeck Configuration UI"""
 
+import logging
 import os
 import threading
+import time
 from copy import deepcopy
 from functools import partial
-from typing import Dict, List, Optional, Tuple, Union
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+from PIL import Image
 from PIL.ImageQt import ImageQt
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QImage, QPixmap
@@ -30,6 +34,7 @@ from streamdeck_ui.display.image_filter import ImageFilter
 from streamdeck_ui.display.text_filter import TextFilter
 from streamdeck_ui.logger import logger
 from streamdeck_ui.model import ButtonMultiState, ButtonState, DeckState
+from streamdeck_ui.plugin_system.plugin_manager import PluginManager
 from streamdeck_ui.stream_deck_monitor import StreamDeckMonitor
 
 
@@ -74,6 +79,9 @@ class StreamDeckServer:
     monitor: Optional[StreamDeckMonitor] = None
     "Monitors for Stream Deck(s) attached to the computer"
 
+    plugin_manager: Optional[PluginManager] = None
+    "Plugin manager for handling plugins"
+
     plugevents = StreamDeckSignalEmitter()
     "Use the connect method on the attached and detached methods to subscribe"
 
@@ -95,6 +103,44 @@ class StreamDeckServer:
         # plug events and key signals?
         self.streamdeck_keys = KeySignalEmitter()
         self.plugevents = StreamDeckSignalEmitter()
+
+        # Initialize plugin manager
+        plugins_dir = Path.home() / ".streamdeck_ui" / "plugins"
+        self.plugin_manager = PluginManager(plugins_dir)
+        self.plugin_manager.discover_plugins()
+
+        # Start plugin monitor thread
+        self.plugin_monitor_thread = threading.Thread(target=self.plugin_manager.monitor_instances, daemon=True)
+        self.plugin_monitor_thread.start()
+
+    def shutdown(self) -> None:
+        """Shutdown the StreamDeck server and cleanup all resources."""
+        logger.info("Shutting down StreamDeck server...")
+
+        # Stop all plugin instances
+        if self.plugin_manager:
+            logger.info("Stopping all plugin instances...")
+            for instance_id in list(self.plugin_manager.instances.keys()):
+                try:
+                    self.plugin_manager.stop_instance(instance_id)
+                except Exception as e:
+                    logger.error(f"Error stopping plugin instance {instance_id}: {e}")
+
+        # Stop dimmers
+        for serial_number in list(self.dimmers.keys()):
+            try:
+                self.stop_dimmer(serial_number)
+            except Exception as e:
+                logger.error(f"Error stopping dimmer for {serial_number}: {e}")
+
+        # Close display handlers
+        for serial_number, display_handler in list(self.display_handlers.items()):
+            try:
+                display_handler.stop()
+            except Exception as e:
+                logger.error(f"Error stopping display handler for {serial_number}: {e}")
+
+        logger.info("Shutdown complete")
 
     def stop_dimmer(self, serial_number: str) -> None:
         """Stops the dimmer for the given Stream Deck
@@ -210,6 +256,9 @@ class StreamDeckServer:
             lambda brightness: self.decks_by_serial[serial_number].set_brightness(brightness),
         )
         self.dimmers[serial_number].reset()
+
+        # Restore plugins from saved state
+        self._restore_plugins_for_deck(serial_number)
 
         self.plugevents.attached.emit(
             {
@@ -725,7 +774,7 @@ class StreamDeckServer:
             filters.append(ImageFilter(button_settings.icon))
 
         if button_settings.text:
-            font_size = button_settings.font_size or DEFAULT_FONT_SIZE
+            font_size = int(button_settings.font_size) if button_settings.font_size else DEFAULT_FONT_SIZE
             font_color = button_settings.font_color or DEFAULT_FONT_COLOR
             font = button_settings.font or DEFAULT_FONT
             # if font is not absolute means a default font, prefix it
@@ -744,3 +793,336 @@ class StreamDeckServer:
             )
 
         display_handler.replace(page, button, filters)
+
+    # Plugin API methods
+
+    def _restore_plugins_for_deck(self, serial_number: str) -> None:
+        """Restore all plugin instances for a given deck from saved state.
+
+        This is called when a deck is attached to restore any previously
+        configured plugins.
+
+        Args:
+            serial_number: Stream Deck serial number
+        """
+        assert self.plugin_manager is not None, "Plugin manager must be initialized"
+
+        if serial_number not in self.state:
+            return
+
+        deck_state = self.state[serial_number]
+
+        # Iterate through all pages and buttons
+        for page, buttons in deck_state.buttons.items():
+            for button, button_multi_state in buttons.items():
+                # Check each state in the multi-state
+                for state_id, button_state in button_multi_state.states.items():
+                    # Check if this button has a plugin configured
+                    if button_state.plugin_id:
+                        logger.info(
+                            f"Restoring plugin {button_state.plugin_id} for "
+                            f"deck {serial_number}, page {page}, button {button}, state {state_id}"
+                        )
+
+                        # Create and start the plugin instance
+                        try:
+                            instance_id = self.plugin_manager.create_instance(
+                                plugin_id=button_state.plugin_id,
+                                deck_serial=serial_number,
+                                page=page,
+                                button=button,
+                                config=button_state.plugin_config,
+                                can_switch_page=button_state.plugin_can_switch_page,
+                            )
+
+                            if instance_id:
+                                # Set up callbacks
+                                instance = self.plugin_manager.get_instance(instance_id)
+                                if instance:
+                                    instance.on_image_update = self._handle_plugin_image_update
+                                    instance.on_page_switch_request = self._handle_plugin_page_switch
+                                    instance.on_log_message = self._handle_plugin_log_message
+
+                                # Start the plugin
+                                success = self.plugin_manager.start_instance(instance_id)
+                                if success:
+                                    logger.info(f"Successfully restored plugin instance {instance_id}")
+
+                                    # If button is on current page, notify plugin it's visible
+                                    current_page = self.get_page(serial_number)
+                                    if current_page == page and instance:
+                                        instance.send_button_visible()
+                                else:
+                                    logger.error(f"Failed to start restored plugin instance {instance_id}")
+                            else:
+                                logger.error(f"Failed to create plugin instance for {button_state.plugin_id}")
+                        except Exception as e:
+                            logger.error(f"Error restoring plugin {button_state.plugin_id}: {e}", exc_info=True)
+
+    def get_button_plugin_id(self, serial_number: str, page: int, button: int) -> str:
+        """Get the plugin ID for a button."""
+        state = self.get_button_state(serial_number, page, button)
+        button_settings = self.get_button_state_object(serial_number, page, button, state)
+        return button_settings.plugin_id
+
+    def set_button_plugin_id(self, serial_number: str, page: int, button: int, plugin_id: str) -> None:
+        """Set the plugin ID for a button."""
+        state = self.get_button_state(serial_number, page, button)
+        button_settings = self.get_button_state_object(serial_number, page, button, state)
+        button_settings.plugin_id = plugin_id
+        self._save_state()
+
+    def get_button_plugin_config(self, serial_number: str, page: int, button: int) -> Dict[str, Any]:
+        """Get the plugin configuration for a button."""
+        state = self.get_button_state(serial_number, page, button)
+        button_settings = self.get_button_state_object(serial_number, page, button, state)
+        return button_settings.plugin_config
+
+    def set_button_plugin_config(self, serial_number: str, page: int, button: int, config: Dict[str, Any]) -> None:
+        """Set the plugin configuration for a button."""
+        assert self.plugin_manager is not None
+
+        state = self.get_button_state(serial_number, page, button)
+        button_settings = self.get_button_state_object(serial_number, page, button, state)
+        button_settings.plugin_config = config
+        self._save_state()
+
+        # Update running plugin instance if exists
+        instance_id = f"{button_settings.plugin_id}_{serial_number}_{page}_{button}"
+        instance = self.plugin_manager.get_instance(instance_id)
+        if instance and instance.running:
+            instance.send_config_update(config)
+
+    def get_button_plugin_can_switch_page(self, serial_number: str, page: int, button: int) -> bool:
+        """Get whether the plugin can switch pages."""
+        state = self.get_button_state(serial_number, page, button)
+        button_settings = self.get_button_state_object(serial_number, page, button, state)
+        return button_settings.plugin_can_switch_page
+
+    def set_button_plugin_can_switch_page(self, serial_number: str, page: int, button: int, can_switch: bool) -> None:
+        """Set whether the plugin can switch pages."""
+        state = self.get_button_state(serial_number, page, button)
+        button_settings = self.get_button_state_object(serial_number, page, button, state)
+        button_settings.plugin_can_switch_page = can_switch
+        self._save_state()
+
+    def attach_plugin_to_button(
+        self,
+        serial_number: str,
+        page: int,
+        button: int,
+        plugin_id: str,
+        config: Dict[str, Any],
+        can_switch_page: bool = False,
+    ) -> bool:
+        """Attach a plugin to a button and start it.
+
+        Args:
+            serial_number: Stream Deck serial number
+            page: Page number
+            button: Button number
+            plugin_id: Plugin identifier
+            config: Plugin configuration
+            can_switch_page: Whether plugin can switch pages
+
+        Returns:
+            True if successful
+        """
+        assert self.plugin_manager is not None
+        # Check if an instance already exists for this button
+        instance_id = f"{plugin_id}_{serial_number}_{page}_{button}"
+        existing_instance = self.plugin_manager.get_instance(instance_id)
+
+        if existing_instance:
+            # Update existing instance configuration
+            logger.info(f"Updating existing plugin instance {instance_id}")
+            self.set_button_plugin_config(serial_number, page, button, config)
+            self.set_button_plugin_can_switch_page(serial_number, page, button, can_switch_page)
+            existing_instance.send_config_update(config)
+            return True
+
+        # Save plugin info to button state
+        self.set_button_plugin_id(serial_number, page, button, plugin_id)
+        self.set_button_plugin_config(serial_number, page, button, config)
+        self.set_button_plugin_can_switch_page(serial_number, page, button, can_switch_page)
+
+        # Create and start plugin instance
+        instance_id_result = self.plugin_manager.create_instance(
+            plugin_id=plugin_id,
+            deck_serial=serial_number,
+            page=page,
+            button=button,
+            config=config,
+            can_switch_page=can_switch_page,
+        )
+
+        if not instance_id_result:
+            logger.error(f"Failed to create plugin instance for {plugin_id}")
+            return False
+
+        # Set up callbacks
+        instance = self.plugin_manager.get_instance(instance_id_result)
+        if instance:
+            instance.on_image_update = self._handle_plugin_image_update
+            instance.on_page_switch_request = self._handle_plugin_page_switch
+            instance.on_log_message = self._handle_plugin_log_message
+
+        # Start the plugin
+        success = self.plugin_manager.start_instance(instance_id_result)
+        if not success:
+            logger.error(f"Failed to start plugin instance {instance_id_result}")
+            return False
+
+        # If button is currently visible, notify plugin
+        current_page = self.get_page(serial_number)
+        if current_page == page and instance:
+            instance.send_button_visible()
+
+        return True
+
+    def detach_plugin_from_button(self, serial_number: str, page: int, button: int) -> None:
+        """Detach a plugin from a button and stop it."""
+        assert self.plugin_manager is not None
+        plugin_id = self.get_button_plugin_id(serial_number, page, button)
+        if not plugin_id:
+            return
+
+        # Stop and remove plugin instance
+        instance_id = f"{plugin_id}_{serial_number}_{page}_{button}"
+        self.plugin_manager.remove_instance(instance_id)
+
+        # Clear plugin info from button state
+        self.set_button_plugin_id(serial_number, page, button, "")
+        self.set_button_plugin_config(serial_number, page, button, {})
+        self.set_button_plugin_can_switch_page(serial_number, page, button, False)
+
+    def _handle_plugin_image_update(
+        self, deck_serial: str, page: int, button: int, update_data: Dict[str, Any]
+    ) -> None:
+        """Handle image update request from plugin."""
+        try:
+            if update_data["type"] == "raw":
+                # Handle raw image data
+                image: Image.Image = update_data["image"]
+                # Convert to appropriate format and update display
+                display_handler = self.display_handlers.get(deck_serial)
+                if display_handler:
+                    # Create a temporary filter with the image
+                    import tempfile
+
+                    from streamdeck_ui.display.image_filter import ImageFilter
+
+                    # Save image to temp file
+                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+                        image.save(f, "PNG")
+                        temp_path = f.name
+
+                    # Update filters with the new image
+                    from streamdeck_ui.display.filter import Filter
+
+                    filters: list[Filter] = [ImageFilter(temp_path)]
+                    display_handler.replace(page, button, filters)
+
+                    # Clean up temp file after a delay (let the filter load it first)
+                    import time
+
+                    def cleanup():
+                        time.sleep(1)
+                        os.unlink(temp_path)
+
+                    threading.Thread(target=cleanup, daemon=True).start()
+
+            elif update_data["type"] == "render":
+                # Handle render instructions
+                instructions = update_data["instructions"]
+
+                # Update button state with new rendering instructions
+                state = self.get_button_state(deck_serial, page, button)
+                button_state = self.get_button_state_object(deck_serial, page, button, state)
+
+                if "text" in instructions:
+                    button_state.text = instructions["text"]
+                if "icon" in instructions:
+                    button_state.icon = instructions["icon"]
+                if "background_color" in instructions:
+                    button_state.background_color = instructions["background_color"]
+                if "font_color" in instructions:
+                    button_state.font_color = instructions["font_color"]
+                if "font_size" in instructions:
+                    button_state.font_size = instructions["font_size"]
+                if "text_vertical_align" in instructions:
+                    button_state.text_vertical_align = instructions["text_vertical_align"]
+                if "text_horizontal_align" in instructions:
+                    button_state.text_horizontal_align = instructions["text_horizontal_align"]
+
+                # Update filters
+                self._update_button_filters(deck_serial, page, button)
+
+        except Exception as e:
+            logger.error(f"Error handling plugin image update: {e}", exc_info=True)
+
+    def _handle_plugin_page_switch(self, deck_serial: str, page: int, button: int, duration: Optional[int]) -> None:
+        """Handle page switch request from plugin."""
+        try:
+            if duration:
+                # Temporary page switch
+                self.set_temp_page(deck_serial, page)
+
+                # Schedule return to previous page
+                def restore():
+                    time.sleep(duration)
+                    self.restore_previous_page(deck_serial)
+
+                threading.Thread(target=restore, daemon=True).start()
+            else:
+                # Permanent page switch
+                self.set_page(deck_serial, page)
+
+        except Exception as e:
+            logger.error(f"Error handling plugin page switch: {e}", exc_info=True)
+
+    def _handle_plugin_log_message(self, level: str, message: str) -> None:
+        """Handle log message from plugin."""
+        log_level_map = {
+            "debug": logging.DEBUG,
+            "info": logging.INFO,
+            "warning": logging.WARNING,
+            "error": logging.ERROR,
+        }
+        logger.log(log_level_map.get(level, logging.INFO), f"Plugin: {message}")
+
+    def notify_button_press(self, serial_number: str, page: int, button: int, pressed: bool) -> None:
+        """Notify plugins about button press/release.
+
+        Args:
+            serial_number: Stream Deck serial number
+            page: Page number
+            button: Button number
+            pressed: True if pressed, False if released
+        """
+        assert self.plugin_manager is not None
+        instances = self.plugin_manager.get_instances_for_button(serial_number, page, button)
+        for instance in instances:
+            if pressed:
+                instance.send_button_pressed()
+            else:
+                instance.send_button_released()
+
+    def notify_page_change(self, serial_number: str, old_page: int, new_page: int) -> None:
+        """Notify plugins about page changes.
+
+        Args:
+            serial_number: Stream Deck serial number
+            old_page: Previous page number
+            new_page: New page number
+        """
+        assert self.plugin_manager is not None
+        # Notify plugins on old page that they're now hidden
+        for instance in self.plugin_manager.instances.values():
+            if instance.deck_serial == serial_number and instance.page == old_page:
+                instance.send_button_hidden()
+
+        # Notify plugins on new page that they're now visible
+        for instance in self.plugin_manager.instances.values():
+            if instance.deck_serial == serial_number and instance.page == new_page:
+                instance.send_button_visible()

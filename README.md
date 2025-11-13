@@ -53,6 +53,7 @@ All credit to the original authors and the many contributors to both previous pr
 - **Animated icons**: Use an animated gif to liven things up a bit.
 - **Runs under systemd**: Run automatically in the background as a systemd --user service.
 - **Stream Deck Pedal**: Supports actions when pressing pedals.
+- **Plugin System**: Extend functionality with Python plugins that can monitor external services, update buttons dynamically, and respond to events. See [Plugin Development Guide](PLUGIN_DEVELOPMENT.md).
 
 # Documentation
 
@@ -76,6 +77,46 @@ Once you're up and running, consider installing a [systemd service](docs/install
 ### Precooked Scripts
 
 There are scripts for setting up streamdeck_ui on [Debian/Ubuntu](scripts/ubuntu_install.sh) and [Fedora](scripts/fedora_install.sh).
+
+## Plugin System
+
+StreamDeck UI now supports a powerful plugin system that allows you to extend functionality with custom Python scripts. Plugins can:
+
+- **Monitor external services** (APIs, databases, servers, etc.)
+- **Update button appearance dynamically** based on real-time data
+- **Respond to button presses** with custom logic
+- **Request page switches** when important events occur
+- **Run continuously** or only when visible
+
+### Example Plugins
+
+The repository includes two production-ready example plugins:
+
+**Prometheus AlertManager Monitor** ([plugins/alertmanager/](plugins/alertmanager/)):
+- Monitors AlertManager for active alerts
+- Updates button display with alert count
+- Changes color based on severity
+- Flashes and switches pages on new alerts
+- Opens AlertManager in browser when pressed
+- Supports multiple authentication methods
+
+**Arch Linux Update Monitor** ([plugins/arch_update/](plugins/arch_update/)):
+- Monitors system updates (pacman, AUR, Flatpak)
+- Shows update count with color coding
+- Displays breakdown by source (P:pacman, A:AUR, F:Flatpak)
+- Launches update command in terminal on button press
+- Supports any AUR helper and terminal emulator
+- Automatic page switching on new updates
+
+See the [Plugin Development Guide](PLUGIN_DEVELOPMENT.md) for complete documentation on creating your own plugins.
+
+### Quick Start
+
+1. Create plugin directory: `~/.streamdeck_ui/plugins/my_plugin/`
+2. Add `manifest.yaml` with plugin metadata
+3. Write your plugin extending `BasePlugin`
+4. Restart StreamDeck UI
+5. Assign plugin to a button in the UI
 
 ## Updating Documentation
 
