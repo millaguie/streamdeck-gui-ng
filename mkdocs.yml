@@ -19,6 +19,7 @@ markdown_extensions:
   - admonition
 
 nav:
+  - Home: index.md
   - Installation:
     - Arch: installation/arch.md
     - Centos: installation/centos.md
@@ -27,7 +28,7 @@ nav:
     - Ubuntu: installation/ubuntu.md
     - From Source: installation/source.md
     - Systemd: installation/systemd.md
-  - troubleshooting.md 
+  - troubleshooting.md
   - Contributing:
     - contributing/contributing-guide.md
     - Coding standard: contributing/coding-standard.md
