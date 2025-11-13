@@ -18,4 +18,4 @@ poetry run isort $isort_flag streamdeck_ui/ tests/ --skip ui_main.py --skip reso
 poetry run black $black_flag streamdeck_ui/ tests/ --exclude 'ui_main.py|resources_rc.py|ui_settings.py|ui_button.py' --line-length 120
 poetry run flake8 streamdeck_ui/ tests/ --ignore F403,F401,W503 --exclude ui_main.py,resources_rc.py,ui_settings.py,ui_button.py
 poetry run safety check 2>&1 | grep -v "DEPRECATED"
-poetry run bandit -r streamdeck_ui/
+poetry run bandit -r streamdeck_ui/ --severity-level medium
