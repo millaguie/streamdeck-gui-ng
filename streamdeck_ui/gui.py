@@ -656,7 +656,9 @@ def build_button_state_form(tab) -> None:
     tab_ui.keys.setText(button_state.keys)
     tab_ui.write.setPlainText(button_state.write)
     tab_ui.change_brightness.setValue(button_state.brightness_change)
-    tab_ui.text_font_size.setValue(button_state.font_size or DEFAULT_FONT_SIZE)
+    # Convert font_size to int if it's a string
+    font_size = button_state.font_size or DEFAULT_FONT_SIZE
+    tab_ui.text_font_size.setValue(int(font_size) if font_size else DEFAULT_FONT_SIZE)
     tab_ui.text_color.setPalette(QPalette(button_state.font_color or DEFAULT_FONT_COLOR))
     tab_ui.background_color.setPalette(QPalette(button_state.background_color or DEFAULT_BACKGROUND_COLOR))
     tab_ui.change_brightness.setValue(button_state.brightness_change)
@@ -703,7 +705,7 @@ def build_button_state_form(tab) -> None:
 
     # Connect mode selector to handler
     mode_selector.currentIndexChanged.connect(
-        partial(_handle_button_mode_change, tab_ui, deck_id, page_id, button_id, button_state_id)
+        partial(_handle_button_mode_change, tab, tab_ui, deck_id, page_id, button_id, button_state_id)
     )
 
     # Add plugin configuration UI
@@ -724,7 +726,7 @@ def _determine_button_mode(button_state):
         return "command"
 
 
-def _handle_button_mode_change(tab_ui, deck_id, page_id, button_id, button_state_id, index=None):
+def _handle_button_mode_change(tab, tab_ui, deck_id, page_id, button_id, button_state_id, index=None):
     """Handle button mode change."""
     mode = tab_ui.button_mode_selector.currentData()
 
@@ -757,7 +759,7 @@ def _handle_button_mode_change(tab_ui, deck_id, page_id, button_id, button_state
     _apply_button_mode_visibility(tab_ui, mode)
 
     # Rebuild the form to reflect changes
-    build_button_state_form(tab_ui.parent().parent())
+    build_button_state_form(tab)
 
 
 def _apply_button_mode_visibility(tab_ui, mode):
