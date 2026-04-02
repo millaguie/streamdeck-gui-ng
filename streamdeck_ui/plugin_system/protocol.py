@@ -44,8 +44,8 @@ class ProtocolMessage:
     """Base protocol message structure."""
 
     type: MessageType
-    payload: Dict[str, Any]
-    message_id: Optional[str] = None  # For tracking request/response
+    payload: dict[str, Any]
+    message_id: str | None = None  # For tracking request/response
 
     def to_json(self) -> str:
         """Serialize message to JSON."""
@@ -115,7 +115,7 @@ def create_button_hidden_message() -> ProtocolMessage:
     )
 
 
-def create_config_update_message(config: Dict[str, Any]) -> ProtocolMessage:
+def create_config_update_message(config: dict[str, Any]) -> ProtocolMessage:
     """Create config update message."""
     return ProtocolMessage(
         type=MessageType.CONFIG_UPDATE,
@@ -150,13 +150,13 @@ def create_update_image_raw_message(image_data: bytes, format: str = "PNG") -> P
 
 
 def create_update_image_render_message(
-    text: Optional[str] = None,
-    icon: Optional[str] = None,
-    background_color: Optional[str] = None,
-    font_color: Optional[str] = None,
-    font_size: Optional[int] = None,
-    text_vertical_align: Optional[str] = None,
-    text_horizontal_align: Optional[str] = None,
+    text: str | None = None,
+    icon: str | None = None,
+    background_color: str | None = None,
+    font_color: str | None = None,
+    font_size: int | None = None,
+    text_vertical_align: str | None = None,
+    text_horizontal_align: str | None = None,
 ) -> ProtocolMessage:
     """Create update image render message with rendering instructions."""
     payload = {}
@@ -181,7 +181,7 @@ def create_update_image_render_message(
     )
 
 
-def create_request_page_switch_message(duration: Optional[int] = None) -> ProtocolMessage:
+def create_request_page_switch_message(duration: int | None = None) -> ProtocolMessage:
     """Create request page switch message.
 
     Args:
@@ -217,7 +217,7 @@ def create_ready_message() -> ProtocolMessage:
     )
 
 
-def create_error_message(error: str, details: Optional[str] = None) -> ProtocolMessage:
+def create_error_message(error: str, details: str | None = None) -> ProtocolMessage:
     """Create error message."""
     payload = {"error": error}
     if details:
@@ -228,7 +228,7 @@ def create_error_message(error: str, details: Optional[str] = None) -> ProtocolM
     )
 
 
-def create_ack_message(message_id: Optional[str] = None) -> ProtocolMessage:
+def create_ack_message(message_id: str | None = None) -> ProtocolMessage:
     """Create acknowledgment message."""
     return ProtocolMessage(
         type=MessageType.ACK,

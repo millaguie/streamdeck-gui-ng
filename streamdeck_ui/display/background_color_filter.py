@@ -1,5 +1,6 @@
 from fractions import Fraction
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple
+from collections.abc import Callable
 
 from PIL import Image, ImageColor
 
@@ -7,15 +8,15 @@ from streamdeck_ui.display.filter import Filter
 
 
 class BackgroundColorFilter(Filter):
-    image: Optional[Image.Image]
+    image: Image.Image | None
 
     def __init__(self, color: str):
-        super(BackgroundColorFilter, self).__init__()
+        super().__init__()
         self.image = None
         self.color = to_rgb(color)
         self.hashcode = hash((self.__class__, self.color))
 
-    def initialize(self, size: Tuple[int, int]):
+    def initialize(self, size: tuple[int, int]):
         self.image = Image.new("RGB", size)
         self.image.paste(self.color, (0, 0, size[0], size[1]))
 
@@ -25,13 +26,13 @@ class BackgroundColorFilter(Filter):
         get_output: Callable[[int], Image.Image],
         input_changed: bool,
         time: Fraction,
-    ) -> Tuple[Optional[Image.Image], int]:
+    ) -> tuple[Image.Image | None, int]:
         if not input_changed:
             return None, self.hashcode
         return self.image, self.hashcode
 
 
-def to_rgb(hex_str: str) -> Tuple[int, ...]:
+def to_rgb(hex_str: str) -> tuple[int, ...]:
     """
     Converts a hex string or a color string to an RGB tuple.
     """

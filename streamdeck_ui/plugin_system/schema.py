@@ -37,9 +37,9 @@ class PluginVariable:
     type: VariableType
     description: str
     required: bool = True
-    default: Optional[Any] = None
+    default: Any | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "name": self.name,
@@ -50,7 +50,7 @@ class PluginVariable:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PluginVariable":
+    def from_dict(cls, data: dict[str, Any]) -> "PluginVariable":
         """Create from dictionary."""
         return cls(
             name=data["name"],
@@ -78,7 +78,7 @@ class PluginManifest:
     lifecycle_mode: LifecycleMode = LifecycleMode.ALWAYS_RUNNING
 
     # Configuration
-    variables: List[PluginVariable] = field(default_factory=list)
+    variables: list[PluginVariable] = field(default_factory=list)
 
     # Permissions
     can_switch_page: bool = False  # Whether plugin can request page switches
@@ -88,11 +88,11 @@ class PluginManifest:
     retry_delay: int = 5  # Delay in seconds between retries
 
     # Optional metadata
-    homepage: Optional[str] = None
-    license: Optional[str] = None
-    icon: Optional[str] = None  # Path to plugin icon (relative to plugin dir)
+    homepage: str | None = None
+    license: str | None = None
+    icon: str | None = None  # Path to plugin icon (relative to plugin dir)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "name": self.name,
@@ -111,7 +111,7 @@ class PluginManifest:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PluginManifest":
+    def from_dict(cls, data: dict[str, Any]) -> "PluginManifest":
         """Create from dictionary."""
         return cls(
             name=data["name"],
@@ -132,7 +132,7 @@ class PluginManifest:
     @classmethod
     def load_from_file(cls, manifest_path: str) -> "PluginManifest":
         """Load manifest from YAML file."""
-        with open(manifest_path, "r") as f:
+        with open(manifest_path) as f:
             data = yaml.safe_load(f)
         return cls.from_dict(data)
 
@@ -141,7 +141,7 @@ class PluginManifest:
         with open(manifest_path, "w") as f:
             yaml.dump(self.to_dict(), f, default_flow_style=False, sort_keys=False)
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """Validate manifest and return list of errors."""
         errors = []
 

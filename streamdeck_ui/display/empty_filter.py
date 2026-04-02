@@ -1,5 +1,6 @@
 from fractions import Fraction
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple
+from collections.abc import Callable
 
 from PIL import Image
 
@@ -14,7 +15,7 @@ class EmptyFilter(filter.Filter):
     """
 
     def __init__(self):
-        super(EmptyFilter, self).__init__()
+        super().__init__()
 
         # For EmptyFilter - create a unique hashcode based on the name of the type
         # This will create "some value" that uniquely identifies this filter output
@@ -22,7 +23,7 @@ class EmptyFilter(filter.Filter):
         # Calculate it once for speed
         self.hashcode = hash(self.__class__)
 
-    def initialize(self, size: Tuple[int, int]):
+    def initialize(self, size: tuple[int, int]):
         self.image = Image.new("RGB", size)
 
     def transform(  # type: ignore[override]
@@ -31,7 +32,7 @@ class EmptyFilter(filter.Filter):
         get_output: Callable[[int], Image.Image],
         input_changed: bool,
         time: Fraction,
-    ) -> Tuple[Optional[Image.Image], int]:
+    ) -> tuple[Image.Image | None, int]:
         """
         Returns an empty Image object.
 

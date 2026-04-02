@@ -31,7 +31,7 @@ class BasePlugin(ABC):
     the abstract methods.
     """
 
-    def __init__(self, socket_path: str, config: Dict[str, Any]):
+    def __init__(self, socket_path: str, config: dict[str, Any]):
         """Initialize plugin.
 
         Args:
@@ -40,7 +40,7 @@ class BasePlugin(ABC):
         """
         self.socket_path = socket_path
         self.config = config
-        self.socket: Optional[socket.socket] = None
+        self.socket: socket.socket | None = None
         self.running = False
         self.logger = self._setup_logger()
 
@@ -80,7 +80,7 @@ class BasePlugin(ABC):
         data = message.to_bytes()
         self.socket.sendall(data)
 
-    def receive_message(self, timeout: Optional[float] = None) -> Optional[ProtocolMessage]:
+    def receive_message(self, timeout: float | None = None) -> ProtocolMessage | None:
         """Receive a message from the host.
 
         Args:
@@ -112,7 +112,7 @@ class BasePlugin(ABC):
 
         return ProtocolMessage.from_bytes(message_data)
 
-    def _recv_exact(self, n: int) -> Optional[bytes]:
+    def _recv_exact(self, n: int) -> bytes | None:
         """Receive exactly n bytes from socket."""
         if self.socket is None:
             return None
@@ -142,13 +142,13 @@ class BasePlugin(ABC):
 
     def update_image_render(
         self,
-        text: Optional[str] = None,
-        icon: Optional[str] = None,
-        background_color: Optional[str] = None,
-        font_color: Optional[str] = None,
-        font_size: Optional[int] = None,
-        text_vertical_align: Optional[str] = None,
-        text_horizontal_align: Optional[str] = None,
+        text: str | None = None,
+        icon: str | None = None,
+        background_color: str | None = None,
+        font_color: str | None = None,
+        font_size: int | None = None,
+        text_vertical_align: str | None = None,
+        text_horizontal_align: str | None = None,
     ) -> None:
         """Update button image with rendering instructions.
 
@@ -172,7 +172,7 @@ class BasePlugin(ABC):
         )
         self.send_message(message)
 
-    def request_page_switch(self, duration: Optional[int] = None) -> None:
+    def request_page_switch(self, duration: int | None = None) -> None:
         """Request to switch to the page containing this button.
 
         Args:
@@ -201,7 +201,7 @@ class BasePlugin(ABC):
         message = create_ready_message()
         self.send_message(message)
 
-    def send_error(self, error: str, details: Optional[str] = None) -> None:
+    def send_error(self, error: str, details: str | None = None) -> None:
         """Send error message to host.
 
         Args:
@@ -279,7 +279,7 @@ class BasePlugin(ABC):
         """Called when button is no longer visible."""
         pass
 
-    def on_config_update(self, config: Dict[str, Any]) -> None:  # noqa: B027
+    def on_config_update(self, config: dict[str, Any]) -> None:  # noqa: B027
         """Called when configuration is updated.
 
         Default implementation does nothing. Override if needed.
@@ -296,7 +296,7 @@ class BasePlugin(ABC):
         """
         pass
 
-    def on_error(self, error: str, details: Optional[str] = None) -> None:
+    def on_error(self, error: str, details: str | None = None) -> None:
         """Called when an error message is received from host.
 
         Default implementation logs the error. Override if needed.

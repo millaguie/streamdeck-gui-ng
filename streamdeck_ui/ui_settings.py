@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 ################################################################################
 ## Form generated from reading UI file 'settings.ui'
 ##
@@ -20,10 +18,10 @@ from PySide6.QtWidgets import (QAbstractButton, QApplication, QComboBox, QDialog
     QSlider, QVBoxLayout, QWidget)
 from . import resources_rc
 
-class Ui_SettingsDialog(object):
+class Ui_SettingsDialog:
     def setupUi(self, SettingsDialog):
         if not SettingsDialog.objectName():
-            SettingsDialog.setObjectName(u"SettingsDialog")
+            SettingsDialog.setObjectName("SettingsDialog")
         SettingsDialog.setWindowModality(Qt.ApplicationModal)
         SettingsDialog.resize(452, 156)
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -32,55 +30,55 @@ class Ui_SettingsDialog(object):
         sizePolicy.setHeightForWidth(SettingsDialog.sizePolicy().hasHeightForWidth())
         SettingsDialog.setSizePolicy(sizePolicy)
         icon = QIcon()
-        icon.addFile(u":/icons/icons/gear.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        icon.addFile(":/icons/icons/gear.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
         SettingsDialog.setWindowIcon(icon)
         self.verticalLayout = QVBoxLayout(SettingsDialog)
-        self.verticalLayout.setObjectName(u"verticalLayout")
+        self.verticalLayout.setObjectName("verticalLayout")
         self.verticalLayout.setContentsMargins(9, -1, -1, -1)
         self.verticalLayout_2 = QVBoxLayout()
-        self.verticalLayout_2.setObjectName(u"verticalLayout_2")
+        self.verticalLayout_2.setObjectName("verticalLayout_2")
         self.formLayout = QFormLayout()
-        self.formLayout.setObjectName(u"formLayout")
+        self.formLayout.setObjectName("formLayout")
         self.formLayout.setHorizontalSpacing(30)
         self.formLayout.setVerticalSpacing(6)
         self.label = QLabel(SettingsDialog)
-        self.label.setObjectName(u"label")
+        self.label.setObjectName("label")
 
         self.formLayout.setWidget(0, QFormLayout.ItemRole.LabelRole, self.label)
 
         self.label_streamdeck = QLabel(SettingsDialog)
-        self.label_streamdeck.setObjectName(u"label_streamdeck")
+        self.label_streamdeck.setObjectName("label_streamdeck")
 
         self.formLayout.setWidget(0, QFormLayout.ItemRole.FieldRole, self.label_streamdeck)
 
         self.label_brightness = QLabel(SettingsDialog)
-        self.label_brightness.setObjectName(u"label_brightness")
+        self.label_brightness.setObjectName("label_brightness")
 
         self.formLayout.setWidget(1, QFormLayout.ItemRole.LabelRole, self.label_brightness)
 
         self.brightness = QSlider(SettingsDialog)
-        self.brightness.setObjectName(u"brightness")
+        self.brightness.setObjectName("brightness")
         self.brightness.setOrientation(Qt.Horizontal)
 
         self.formLayout.setWidget(1, QFormLayout.ItemRole.FieldRole, self.brightness)
 
         self.label_dim = QLabel(SettingsDialog)
-        self.label_dim.setObjectName(u"label_dim")
+        self.label_dim.setObjectName("label_dim")
 
         self.formLayout.setWidget(2, QFormLayout.ItemRole.LabelRole, self.label_dim)
 
         self.dim = QComboBox(SettingsDialog)
-        self.dim.setObjectName(u"dim")
+        self.dim.setObjectName("dim")
 
         self.formLayout.setWidget(2, QFormLayout.ItemRole.FieldRole, self.dim)
 
         self.label_brightness_dimmed = QLabel(SettingsDialog)
-        self.label_brightness_dimmed.setObjectName(u"label_brightness_dimmed")
+        self.label_brightness_dimmed.setObjectName("label_brightness_dimmed")
 
         self.formLayout.setWidget(3, QFormLayout.ItemRole.LabelRole, self.label_brightness_dimmed)
 
         self.brightness_dimmed = QSlider(SettingsDialog)
-        self.brightness_dimmed.setObjectName(u"brightness_dimmed")
+        self.brightness_dimmed.setObjectName("brightness_dimmed")
         self.brightness_dimmed.setOrientation(Qt.Horizontal)
 
         self.formLayout.setWidget(3, QFormLayout.ItemRole.FieldRole, self.brightness_dimmed)
@@ -92,7 +90,7 @@ class Ui_SettingsDialog(object):
         self.verticalLayout.addLayout(self.verticalLayout_2)
 
         self.buttonBox = QDialogButtonBox(SettingsDialog)
-        self.buttonBox.setObjectName(u"buttonBox")
+        self.buttonBox.setObjectName("buttonBox")
         self.buttonBox.setOrientation(Qt.Horizontal)
         self.buttonBox.setStandardButtons(QDialogButtonBox.Cancel|QDialogButtonBox.Ok)
         self.buttonBox.setCenterButtons(False)
@@ -108,12 +106,12 @@ class Ui_SettingsDialog(object):
     # setupUi
 
     def retranslateUi(self, SettingsDialog):
-        SettingsDialog.setWindowTitle(QCoreApplication.translate("SettingsDialog", u"Stream Deck Settings", None))
-        self.label.setText(QCoreApplication.translate("SettingsDialog", u"Stream Deck:", None))
+        SettingsDialog.setWindowTitle(QCoreApplication.translate("SettingsDialog", "Stream Deck Settings", None))
+        self.label.setText(QCoreApplication.translate("SettingsDialog", "Stream Deck:", None))
         self.label_streamdeck.setText("")
-        self.label_brightness.setText(QCoreApplication.translate("SettingsDialog", u"Brightness:", None))
-        self.label_dim.setText(QCoreApplication.translate("SettingsDialog", u"Auto dim after:", None))
+        self.label_brightness.setText(QCoreApplication.translate("SettingsDialog", "Brightness:", None))
+        self.label_dim.setText(QCoreApplication.translate("SettingsDialog", "Auto dim after:", None))
         self.dim.setCurrentText("")
-        self.label_brightness_dimmed.setText(QCoreApplication.translate("SettingsDialog", u"Dim to %:", None))
+        self.label_brightness_dimmed.setText(QCoreApplication.translate("SettingsDialog", "Dim to %:", None))
     # retranslateUi
 

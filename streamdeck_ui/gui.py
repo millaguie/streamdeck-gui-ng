@@ -61,10 +61,10 @@ main_window: "MainWindow"
 last_image_dir: str = ""
 "Stores the last direction where user selected an image from"
 
-selected_button: Optional[QToolButton] = None
+selected_button: QToolButton | None = None
 "A reference to the currently selected button"
 
-text_update_timer: Optional[QTimer] = None
+text_update_timer: QTimer | None = None
 "Timer used to delay updates to the button text"
 
 BUTTON_STYLE = """
@@ -113,7 +113,7 @@ class DraggableButton(QToolButton):
     """A QToolButton that supports drag and drop and swaps the button properties on drop"""
 
     def __init__(self, parent, ui, api_: StreamDeckServer):
-        super(DraggableButton, self).__init__(parent)
+        super().__init__(parent)
 
         self.setAcceptDrops(True)
         self.ui = ui
@@ -288,14 +288,14 @@ def handle_keypress(ui, deck_id: str, key: int, state: bool) -> None:
                         break
 
 
-def _deck() -> Optional[str]:
+def _deck() -> str | None:
     """Returns the currently selected Stream Deck serial number"""
     if main_window.ui.device_list.count() == 0:
         return None
     return main_window.ui.device_list.itemData(main_window.ui.device_list.currentIndex())
 
 
-def _page() -> Optional[int]:
+def _page() -> int | None:
     """Returns the currently selected page index"""
     tab_index = main_window.ui.pages.currentIndex()
     page = main_window.ui.pages.widget(tab_index)
@@ -304,7 +304,7 @@ def _page() -> Optional[int]:
     return page.property("page_id")
 
 
-def _button() -> Optional[int]:
+def _button() -> int | None:
     """Returns the currently selected button index"""
     if selected_button is None:
         return None
@@ -316,7 +316,7 @@ def _button() -> Optional[int]:
     return index
 
 
-def _button_state() -> Optional[int]:
+def _button_state() -> int | None:
     """Returns the currently selected button state index"""
     tab_index = main_window.ui.button_states.currentIndex()
     state = main_window.ui.button_states.widget(tab_index)
@@ -454,7 +454,7 @@ def handle_delete_button_state() -> None:
         main_window.ui.remove_button_state.setEnabled(False)
 
 
-def _closest_page(page: int, pages: List[int]) -> int:
+def _closest_page(page: int, pages: list[int]) -> int:
     if page not in pages:
         return -1
     page_index = pages.index(page)
@@ -1541,7 +1541,7 @@ class MainWindow(QMainWindow):
     settings: QSettings
 
     def __init__(self):
-        super(MainWindow, self).__init__()
+        super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.window_shown = True
@@ -1574,18 +1574,18 @@ class MainWindow(QMainWindow):
         title = "About StreamDeck UI"
         description = "A Linux compatible UI for the Elgato Stream Deck."
         app = QApplication.instance()
-        body = [description, "Version {}\n".format(app.applicationVersion())]
+        body = [description, f"Version {app.applicationVersion()}\n"]
         dependencies = ("streamdeck", "pyside6", "pillow", "pynput")
         for dep in dependencies:
             try:
                 dist_version = version(dep)
-                body.append("{} {}".format(dep, dist_version))
+                body.append(f"{dep} {dist_version}")
             except PackageNotFoundError:
                 pass
         QMessageBox.about(self, title, "\n".join(body))
 
 
-def update_displayed_button_attribute(attribute: str, value: Union[str, int]) -> None:
+def update_displayed_button_attribute(attribute: str, value: str | int) -> None:
     """Updates the given attribute for the currently selected button.
     and updates the icon of the current selected button."""
     updated = update_button_attribute(attribute, value)
@@ -1605,7 +1605,7 @@ def update_displayed_button_attribute(attribute: str, value: Union[str, int]) ->
         selected_button.setIcon(icon)
 
 
-def update_button_attribute(attribute: str, value: Union[str, int]) -> bool:
+def update_button_attribute(attribute: str, value: str | int) -> bool:
     """
     Updates the given attribute for the currently selected button.
     and updates the icon of the current selected button.
@@ -1795,7 +1795,7 @@ def streamdeck_cpu_changed(ui, serial_number: str, cpu: int):
         ui.cpu_usage.update()
 
 
-def streamdeck_attached(ui, deck: Dict):
+def streamdeck_attached(ui, deck: dict):
     serial_number = deck["serial_number"]
     blocker = QSignalBlocker(ui.device_list)
     try:

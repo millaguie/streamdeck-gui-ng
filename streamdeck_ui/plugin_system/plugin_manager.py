@@ -10,7 +10,8 @@ import threading
 import time
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
+from collections.abc import Callable
 
 from PIL import Image
 
@@ -29,7 +30,7 @@ class PluginInstance:
         instance_id: str,
         manifest: PluginManifest,
         plugin_dir: Path,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         deck_serial: str,
         page: int,
         button: int,
@@ -58,21 +59,21 @@ class PluginInstance:
         self.button = button
         self.can_switch_page = can_switch_page
 
-        self.process: Optional[subprocess.Popen] = None
-        self.socket_path: Optional[str] = None
-        self.socket: Optional[socket.socket] = None
-        self.client_socket: Optional[socket.socket] = None
+        self.process: subprocess.Popen | None = None
+        self.socket_path: str | None = None
+        self.socket: socket.socket | None = None
+        self.client_socket: socket.socket | None = None
         self.running = False
         self.retry_count = 0
         self.last_heartbeat: float = 0.0
 
         # Callbacks
-        self.on_image_update: Optional[Callable[[str, int, int, Any], None]] = None
-        self.on_page_switch_request: Optional[Callable[[str, int, int, Optional[int]], None]] = None
-        self.on_log_message: Optional[Callable[[str, str], None]] = None
+        self.on_image_update: Callable[[str, int, int, Any], None] | None = None
+        self.on_page_switch_request: Callable[[str, int, int, int | None], None] | None = None
+        self.on_log_message: Callable[[str, str], None] | None = None
 
         # Communication thread
-        self.comm_thread: Optional[threading.Thread] = None
+        self.comm_thread: threading.Thread | None = None
         self.comm_lock = threading.Lock()
 
     def start(self) -> bool:
@@ -114,7 +115,7 @@ class PluginInstance:
                 self.client_socket, _ = self.socket.accept()
                 self.client_socket.settimeout(None)  # Set back to blocking
                 logger.info(f"Plugin {self.instance_id} connected")
-            except socket.timeout:
+            except TimeoutError:
                 logger.error(f"Plugin {self.instance_id} failed to connect within timeout")
                 self.stop()
                 return False
@@ -189,7 +190,7 @@ class PluginInstance:
         """Notify plugin that button is now hidden."""
         self._send_message(ProtocolMessage(type=MessageType.BUTTON_HIDDEN, payload={}))
 
-    def send_config_update(self, config: Dict[str, Any]) -> None:
+    def send_config_update(self, config: dict[str, Any]) -> None:
         """Send updated configuration to plugin."""
         self.config = config
         self._send_message(
@@ -235,7 +236,7 @@ class PluginInstance:
         except Exception as e:
             logger.error(f"Failed to send message to plugin {self.instance_id}: {e}")
 
-    def _receive_message(self) -> Optional[ProtocolMessage]:
+    def _receive_message(self) -> ProtocolMessage | None:
         """Receive message from plugin."""
         if not self.client_socket:
             return None
@@ -259,7 +260,7 @@ class PluginInstance:
             logger.error(f"Failed to receive message from plugin {self.instance_id}: {e}")
             return None
 
-    def _recv_exact(self, n: int) -> Optional[bytes]:
+    def _recv_exact(self, n: int) -> bytes | None:
         """Receive exactly n bytes from socket."""
         if self.client_socket is None:
             return None
@@ -410,8 +411,8 @@ class PluginManager:
             plugins_dir: Directory containing plugins
         """
         self.plugins_dir = plugins_dir
-        self.plugins: Dict[str, PluginManifest] = {}
-        self.instances: Dict[str, PluginInstance] = {}
+        self.plugins: dict[str, PluginManifest] = {}
+        self.instances: dict[str, PluginInstance] = {}
         self.lock = threading.Lock()
 
         # Create plugins directory if it doesn't exist
@@ -444,11 +445,11 @@ class PluginManager:
             except Exception as e:
                 logger.error(f"Failed to load plugin from {plugin_dir}: {e}")
 
-    def get_plugin(self, plugin_id: str) -> Optional[PluginManifest]:
+    def get_plugin(self, plugin_id: str) -> PluginManifest | None:
         """Get plugin manifest by ID."""
         return self.plugins.get(plugin_id)
 
-    def get_all_plugins(self) -> Dict[str, PluginManifest]:
+    def get_all_plugins(self) -> dict[str, PluginManifest]:
         """Get all discovered plugins."""
         return self.plugins.copy()
 
@@ -458,9 +459,9 @@ class PluginManager:
         deck_serial: str,
         page: int,
         button: int,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         can_switch_page: bool = False,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Create a new plugin instance.
 
         Args:
@@ -544,7 +545,7 @@ class PluginManager:
             if instance_id in self.instances:
                 del self.instances[instance_id]
 
-    def get_instance(self, instance_id: str) -> Optional[PluginInstance]:
+    def get_instance(self, instance_id: str) -> PluginInstance | None:
         """Get plugin instance by ID."""
         return self.instances.get(instance_id)
 

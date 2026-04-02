@@ -57,7 +57,7 @@ def get_system_fonts():
             if is_valid_language_code(FONT_LANGUAGE):
                 arg_language = ":lang=" + FONT_LANGUAGE
         fclist_command = [fclist_path, arg_language, "file", "family", "style", "pixelsize"]
-        result = subprocess.run(fclist_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)  # nosec B603
+        result = subprocess.run(fclist_command, capture_output=True, text=True)  # nosec B603
         if result.returncode != 0:
             print("Error executing fc-list command: ", result.stderr)
             return fonts_dict
@@ -133,7 +133,7 @@ def is_valid_language_code(code):
     return re.match(r"^[a-zA-Z]{2}(-[a-zA-Z0-9]+)*$", code) is not None
 
 
-def find_font_info(target_font_file: str) -> Tuple[str, str]:
+def find_font_info(target_font_file: str) -> tuple[str, str]:
     """Returns the font family and font style for a given font file path"""
     # The font file path is the font attribute that is stored in the .streamdeck_ui.json
     # we need the family/style for selecting the appropriate items in the combo boxes

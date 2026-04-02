@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 ################################################################################
 ## Form generated from reading UI file 'button.ui'
 ##
@@ -21,28 +19,28 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFormLayout,
     QVBoxLayout, QWidget)
 from . import resources_rc
 
-class Ui_ButtonForm(object):
+class Ui_ButtonForm:
     def setupUi(self, ButtonForm):
         if not ButtonForm.objectName():
-            ButtonForm.setObjectName(u"ButtonForm")
+            ButtonForm.setObjectName("ButtonForm")
         ButtonForm.resize(568, 778)
         self.formLayout = QFormLayout(ButtonForm)
-        self.formLayout.setObjectName(u"formLayout")
+        self.formLayout.setObjectName("formLayout")
         self.label = QLabel(ButtonForm)
-        self.label.setObjectName(u"label")
+        self.label.setObjectName("label")
 
         self.formLayout.setWidget(0, QFormLayout.ItemRole.LabelRole, self.label)
 
         self.horizontalLayout_2 = QHBoxLayout()
         self.horizontalLayout_2.setSpacing(6)
-        self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
+        self.horizontalLayout_2.setObjectName("horizontalLayout_2")
         self.add_image = QPushButton(ButtonForm)
-        self.add_image.setObjectName(u"add_image")
+        self.add_image.setObjectName("add_image")
 
         self.horizontalLayout_2.addWidget(self.add_image)
 
         self.remove_image = QPushButton(ButtonForm)
-        self.remove_image.setObjectName(u"remove_image")
+        self.remove_image.setObjectName("remove_image")
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -50,7 +48,7 @@ class Ui_ButtonForm(object):
         self.remove_image.setSizePolicy(sizePolicy)
         self.remove_image.setMaximumSize(QSize(30, 16777215))
         icon = QIcon()
-        icon.addFile(u":/icons/icons/cross.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        icon.addFile(":/icons/icons/cross.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
         self.remove_image.setIcon(icon)
 
         self.horizontalLayout_2.addWidget(self.remove_image)
@@ -59,12 +57,12 @@ class Ui_ButtonForm(object):
         self.formLayout.setLayout(0, QFormLayout.ItemRole.FieldRole, self.horizontalLayout_2)
 
         self.label_9 = QLabel(ButtonForm)
-        self.label_9.setObjectName(u"label_9")
+        self.label_9.setObjectName("label_9")
 
         self.formLayout.setWidget(1, QFormLayout.ItemRole.LabelRole, self.label_9)
 
         self.background_color = QPushButton(ButtonForm)
-        self.background_color.setObjectName(u"background_color")
+        self.background_color.setObjectName("background_color")
         sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         sizePolicy1.setHorizontalStretch(0)
         sizePolicy1.setVerticalStretch(0)
@@ -143,34 +141,34 @@ class Ui_ButtonForm(object):
         self.formLayout.setWidget(1, QFormLayout.ItemRole.FieldRole, self.background_color)
 
         self.label_2 = QLabel(ButtonForm)
-        self.label_2.setObjectName(u"label_2")
+        self.label_2.setObjectName("label_2")
 
         self.formLayout.setWidget(2, QFormLayout.ItemRole.LabelRole, self.label_2)
 
         self.horizontalLayout_3 = QHBoxLayout()
-        self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
+        self.horizontalLayout_3.setObjectName("horizontalLayout_3")
         self.text = QTextEdit(ButtonForm)
-        self.text.setObjectName(u"text")
+        self.text.setObjectName("text")
 
         self.horizontalLayout_3.addWidget(self.text)
 
         self.verticalLayout_4 = QVBoxLayout()
-        self.verticalLayout_4.setObjectName(u"verticalLayout_4")
+        self.verticalLayout_4.setObjectName("verticalLayout_4")
         self.text_v_align = QPushButton(ButtonForm)
-        self.text_v_align.setObjectName(u"text_v_align")
+        self.text_v_align.setObjectName("text_v_align")
         self.text_v_align.setMinimumSize(QSize(40, 30))
         self.text_v_align.setMaximumSize(QSize(30, 16777215))
         icon1 = QIcon()
-        icon1.addFile(u":/icons/icons/vertical-align.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        icon1.addFile(":/icons/icons/vertical-align.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
         self.text_v_align.setIcon(icon1)
 
         self.verticalLayout_4.addWidget(self.text_v_align)
 
         self.text_h_align = QPushButton(ButtonForm)
-        self.text_h_align.setObjectName(u"text_h_align")
+        self.text_h_align.setObjectName("text_h_align")
         self.text_h_align.setMinimumSize(QSize(40, 30))
         icon2 = QIcon()
-        icon2.addFile(u":/icons/icons/horizontal-align.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        icon2.addFile(":/icons/icons/horizontal-align.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
         self.text_h_align.setIcon(icon2)
 
         self.verticalLayout_4.addWidget(self.text_h_align)
@@ -182,14 +180,14 @@ class Ui_ButtonForm(object):
         self.formLayout.setLayout(2, QFormLayout.ItemRole.FieldRole, self.horizontalLayout_3)
 
         self.label_4 = QLabel(ButtonForm)
-        self.label_4.setObjectName(u"label_4")
+        self.label_4.setObjectName("label_4")
 
         self.formLayout.setWidget(3, QFormLayout.ItemRole.LabelRole, self.label_4)
 
         self.horizontalLayout = QHBoxLayout()
-        self.horizontalLayout.setObjectName(u"horizontalLayout")
+        self.horizontalLayout.setObjectName("horizontalLayout")
         self.text_font = QComboBox(ButtonForm)
-        self.text_font.setObjectName(u"text_font")
+        self.text_font.setObjectName("text_font")
         sizePolicy2 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         sizePolicy2.setHorizontalStretch(0)
         sizePolicy2.setVerticalStretch(0)
@@ -199,12 +197,12 @@ class Ui_ButtonForm(object):
         self.horizontalLayout.addWidget(self.text_font)
 
         self.text_font_style = QComboBox(ButtonForm)
-        self.text_font_style.setObjectName(u"text_font_style")
+        self.text_font_style.setObjectName("text_font_style")
 
         self.horizontalLayout.addWidget(self.text_font_style)
 
         self.text_font_size = QSpinBox(ButtonForm)
-        self.text_font_size.setObjectName(u"text_font_size")
+        self.text_font_size.setObjectName("text_font_size")
         sizePolicy3 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         sizePolicy3.setHorizontalStretch(0)
         sizePolicy3.setVerticalStretch(0)
@@ -216,7 +214,7 @@ class Ui_ButtonForm(object):
         self.horizontalLayout.addWidget(self.text_font_size)
 
         self.text_color = QPushButton(ButtonForm)
-        self.text_color.setObjectName(u"text_color")
+        self.text_color.setObjectName("text_color")
         sizePolicy4 = QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         sizePolicy4.setHorizontalStretch(0)
         sizePolicy4.setVerticalStretch(0)
@@ -290,32 +288,32 @@ class Ui_ButtonForm(object):
         self.formLayout.setLayout(3, QFormLayout.ItemRole.FieldRole, self.horizontalLayout)
 
         self.label_3 = QLabel(ButtonForm)
-        self.label_3.setObjectName(u"label_3")
+        self.label_3.setObjectName("label_3")
 
         self.formLayout.setWidget(5, QFormLayout.ItemRole.LabelRole, self.label_3)
 
         self.command = QLineEdit(ButtonForm)
-        self.command.setObjectName(u"command")
+        self.command.setObjectName("command")
 
         self.formLayout.setWidget(5, QFormLayout.ItemRole.FieldRole, self.command)
 
         self.label_5 = QLabel(ButtonForm)
-        self.label_5.setObjectName(u"label_5")
+        self.label_5.setObjectName("label_5")
 
         self.formLayout.setWidget(7, QFormLayout.ItemRole.LabelRole, self.label_5)
 
         self.keys = QLineEdit(ButtonForm)
-        self.keys.setObjectName(u"keys")
+        self.keys.setObjectName("keys")
 
         self.formLayout.setWidget(7, QFormLayout.ItemRole.FieldRole, self.keys)
 
         self.label_8 = QLabel(ButtonForm)
-        self.label_8.setObjectName(u"label_8")
+        self.label_8.setObjectName("label_8")
 
         self.formLayout.setWidget(8, QFormLayout.ItemRole.LabelRole, self.label_8)
 
         self.switch_page = QSpinBox(ButtonForm)
-        self.switch_page.setObjectName(u"switch_page")
+        self.switch_page.setObjectName("switch_page")
         self.switch_page.setMinimum(0)
         self.switch_page.setMaximum(999999999)
         self.switch_page.setValue(0)
@@ -323,12 +321,12 @@ class Ui_ButtonForm(object):
         self.formLayout.setWidget(8, QFormLayout.ItemRole.FieldRole, self.switch_page)
 
         self.label_temp_switch_page = QLabel(ButtonForm)
-        self.label_temp_switch_page.setObjectName(u"label_temp_switch_page")
+        self.label_temp_switch_page.setObjectName("label_temp_switch_page")
 
         self.formLayout.setWidget(9, QFormLayout.ItemRole.LabelRole, self.label_temp_switch_page)
 
         self.temp_switch_page = QSpinBox(ButtonForm)
-        self.temp_switch_page.setObjectName(u"temp_switch_page")
+        self.temp_switch_page.setObjectName("temp_switch_page")
         self.temp_switch_page.setMinimum(0)
         self.temp_switch_page.setMaximum(999999999)
         self.temp_switch_page.setValue(0)
@@ -336,44 +334,44 @@ class Ui_ButtonForm(object):
         self.formLayout.setWidget(9, QFormLayout.ItemRole.FieldRole, self.temp_switch_page)
 
         self.label_10 = QLabel(ButtonForm)
-        self.label_10.setObjectName(u"label_10")
+        self.label_10.setObjectName("label_10")
 
         self.formLayout.setWidget(10, QFormLayout.ItemRole.LabelRole, self.label_10)
 
         self.switch_state = QSpinBox(ButtonForm)
-        self.switch_state.setObjectName(u"switch_state")
+        self.switch_state.setObjectName("switch_state")
         self.switch_state.setMaximum(999999999)
 
         self.formLayout.setWidget(10, QFormLayout.ItemRole.FieldRole, self.switch_state)
 
         self.label_7 = QLabel(ButtonForm)
-        self.label_7.setObjectName(u"label_7")
+        self.label_7.setObjectName("label_7")
 
         self.formLayout.setWidget(11, QFormLayout.ItemRole.LabelRole, self.label_7)
 
         self.change_brightness = QSpinBox(ButtonForm)
-        self.change_brightness.setObjectName(u"change_brightness")
+        self.change_brightness.setObjectName("change_brightness")
         self.change_brightness.setMinimum(-99)
 
         self.formLayout.setWidget(11, QFormLayout.ItemRole.FieldRole, self.change_brightness)
 
         self.label_6 = QLabel(ButtonForm)
-        self.label_6.setObjectName(u"label_6")
+        self.label_6.setObjectName("label_6")
 
         self.formLayout.setWidget(12, QFormLayout.ItemRole.LabelRole, self.label_6)
 
         self.write = QPlainTextEdit(ButtonForm)
-        self.write.setObjectName(u"write")
+        self.write.setObjectName("write")
 
         self.formLayout.setWidget(12, QFormLayout.ItemRole.FieldRole, self.write)
 
         self.label_force_refresh = QLabel(ButtonForm)
-        self.label_force_refresh.setObjectName(u"label_force_refresh")
+        self.label_force_refresh.setObjectName("label_force_refresh")
 
         self.formLayout.setWidget(13, QFormLayout.ItemRole.LabelRole, self.label_force_refresh)
 
         self.force_refresh = QCheckBox(ButtonForm)
-        self.force_refresh.setObjectName(u"force_refresh")
+        self.force_refresh.setObjectName("force_refresh")
 
         self.formLayout.setWidget(13, QFormLayout.ItemRole.FieldRole, self.force_refresh)
 
@@ -384,52 +382,52 @@ class Ui_ButtonForm(object):
     # setupUi
 
     def retranslateUi(self, ButtonForm):
-        ButtonForm.setWindowTitle(QCoreApplication.translate("ButtonForm", u"Form", None))
-        self.label.setText(QCoreApplication.translate("ButtonForm", u"Image:", None))
-        self.add_image.setText(QCoreApplication.translate("ButtonForm", u"Image...", None))
+        ButtonForm.setWindowTitle(QCoreApplication.translate("ButtonForm", "Form", None))
+        self.label.setText(QCoreApplication.translate("ButtonForm", "Image:", None))
+        self.add_image.setText(QCoreApplication.translate("ButtonForm", "Image...", None))
 #if QT_CONFIG(tooltip)
-        self.remove_image.setToolTip(QCoreApplication.translate("ButtonForm", u"Remove the image from the button", None))
+        self.remove_image.setToolTip(QCoreApplication.translate("ButtonForm", "Remove the image from the button", None))
 #endif // QT_CONFIG(tooltip)
         self.remove_image.setText("")
-        self.label_9.setText(QCoreApplication.translate("ButtonForm", u"Background", None))
+        self.label_9.setText(QCoreApplication.translate("ButtonForm", "Background", None))
 #if QT_CONFIG(tooltip)
-        self.background_color.setToolTip(QCoreApplication.translate("ButtonForm", u"Text Color", None))
+        self.background_color.setToolTip(QCoreApplication.translate("ButtonForm", "Text Color", None))
 #endif // QT_CONFIG(tooltip)
         self.background_color.setText("")
-        self.label_2.setText(QCoreApplication.translate("ButtonForm", u"Label:", None))
+        self.label_2.setText(QCoreApplication.translate("ButtonForm", "Label:", None))
 #if QT_CONFIG(tooltip)
-        self.text_v_align.setToolTip(QCoreApplication.translate("ButtonForm", u"Text vertical alignment", None))
+        self.text_v_align.setToolTip(QCoreApplication.translate("ButtonForm", "Text vertical alignment", None))
 #endif // QT_CONFIG(tooltip)
         self.text_v_align.setText("")
 #if QT_CONFIG(tooltip)
-        self.text_h_align.setToolTip(QCoreApplication.translate("ButtonForm", u"Text horizontal alignment", None))
+        self.text_h_align.setToolTip(QCoreApplication.translate("ButtonForm", "Text horizontal alignment", None))
 #endif // QT_CONFIG(tooltip)
         self.text_h_align.setText("")
-        self.label_4.setText(QCoreApplication.translate("ButtonForm", u"Label Font:", None))
+        self.label_4.setText(QCoreApplication.translate("ButtonForm", "Label Font:", None))
 #if QT_CONFIG(tooltip)
-        self.text_font.setToolTip(QCoreApplication.translate("ButtonForm", u"Text Font style", None))
+        self.text_font.setToolTip(QCoreApplication.translate("ButtonForm", "Text Font style", None))
 #endif // QT_CONFIG(tooltip)
 #if QT_CONFIG(tooltip)
-        self.text_font_style.setToolTip(QCoreApplication.translate("ButtonForm", u"Text Font", None))
+        self.text_font_style.setToolTip(QCoreApplication.translate("ButtonForm", "Text Font", None))
 #endif // QT_CONFIG(tooltip)
 #if QT_CONFIG(tooltip)
-        self.text_font_size.setToolTip(QCoreApplication.translate("ButtonForm", u"Text Font size", None))
+        self.text_font_size.setToolTip(QCoreApplication.translate("ButtonForm", "Text Font size", None))
 #endif // QT_CONFIG(tooltip)
 #if QT_CONFIG(tooltip)
-        self.text_color.setToolTip(QCoreApplication.translate("ButtonForm", u"Text Color", None))
+        self.text_color.setToolTip(QCoreApplication.translate("ButtonForm", "Text Color", None))
 #endif // QT_CONFIG(tooltip)
         self.text_color.setText("")
-        self.label_3.setText(QCoreApplication.translate("ButtonForm", u"Command:", None))
-        self.label_5.setText(QCoreApplication.translate("ButtonForm", u"Press Keys:", None))
-        self.label_8.setText(QCoreApplication.translate("ButtonForm", u"Switch Page:", None))
-        self.label_temp_switch_page.setText(QCoreApplication.translate("ButtonForm", u"Temp Switch Page:", None))
-        self.label_10.setText(QCoreApplication.translate("ButtonForm", u"Switch state", None))
-        self.label_7.setText(QCoreApplication.translate("ButtonForm", u"Brightness +/-:", None))
-        self.label_6.setText(QCoreApplication.translate("ButtonForm", u"Write Text:", None))
-        self.label_force_refresh.setText(QCoreApplication.translate("ButtonForm", u"Force Refresh:", None))
+        self.label_3.setText(QCoreApplication.translate("ButtonForm", "Command:", None))
+        self.label_5.setText(QCoreApplication.translate("ButtonForm", "Press Keys:", None))
+        self.label_8.setText(QCoreApplication.translate("ButtonForm", "Switch Page:", None))
+        self.label_temp_switch_page.setText(QCoreApplication.translate("ButtonForm", "Temp Switch Page:", None))
+        self.label_10.setText(QCoreApplication.translate("ButtonForm", "Switch state", None))
+        self.label_7.setText(QCoreApplication.translate("ButtonForm", "Brightness +/-:", None))
+        self.label_6.setText(QCoreApplication.translate("ButtonForm", "Write Text:", None))
+        self.label_force_refresh.setText(QCoreApplication.translate("ButtonForm", "Force Refresh:", None))
 #if QT_CONFIG(tooltip)
-        self.force_refresh.setToolTip(QCoreApplication.translate("ButtonForm", u"Force icon refresh after command execution", None))
+        self.force_refresh.setToolTip(QCoreApplication.translate("ButtonForm", "Force icon refresh after command execution", None))
 #endif // QT_CONFIG(tooltip)
-        self.force_refresh.setText(QCoreApplication.translate("ButtonForm", u"Refresh icon after command", None))
+        self.force_refresh.setText(QCoreApplication.translate("ButtonForm", "Refresh icon after command", None))
     # retranslateUi
 

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from fractions import Fraction
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple
+from collections.abc import Callable
 
 from PIL import Image
 
@@ -13,7 +14,7 @@ class Filter(ABC):
     :param str name: The name of the filter. The name is useful for debugging purposes.
     """
 
-    size: Tuple[int, int]
+    size: tuple[int, int]
     "The image size (width, height) in pixels that this filter transforms."
 
     is_complete: bool
@@ -23,7 +24,7 @@ class Filter(ABC):
         self.is_complete = False
 
     @abstractmethod
-    def initialize(self, size: Tuple[int, int]):
+    def initialize(self, size: tuple[int, int]):
         """Initializes the filter with the provided frame size. Since the construction
         of the filter can happen before the size of the display is known, initialization
         should be done here.
@@ -36,11 +37,11 @@ class Filter(ABC):
     @abstractmethod
     def transform(
         self,
-        get_input: Callable[[], Optional[Image.Image]],
-        get_output: Callable[[int], Optional[Image.Image]],
+        get_input: Callable[[], Image.Image | None],
+        get_output: Callable[[int], Image.Image | None],
         input_changed: bool,
         time: Fraction,
-    ) -> Tuple[Optional[Image.Image], int]:
+    ) -> tuple[Image.Image | None, int]:
         """
         Transforms the given input image to the desired output image.
         The default behaviour is to return the orignal image.
