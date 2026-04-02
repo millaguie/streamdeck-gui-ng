@@ -7,6 +7,7 @@ import sys
 from functools import partial
 from importlib.metadata import PackageNotFoundError, version
 from subprocess import Popen  # nosec - Need to allow users to specify arbitrary commands
+
 from PySide6.QtCore import QMimeData, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QDrag, QFont, QIcon, QPalette
 from PySide6.QtWidgets import (
