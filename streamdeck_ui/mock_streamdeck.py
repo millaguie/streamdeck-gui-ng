@@ -198,4 +198,3 @@ class StreamDeckMock(StreamDeck.StreamDeck):
                                  If `None`, the key will be cleared to a black
                                  color.
         """
-
