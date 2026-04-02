@@ -2,7 +2,6 @@ import itertools
 import os
 from fractions import Fraction
 from io import BytesIO
-from typing import Optional, Tuple
 from collections.abc import Callable
 
 import cairosvg

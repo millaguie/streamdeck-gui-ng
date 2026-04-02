@@ -1,5 +1,4 @@
 from fractions import Fraction
-from typing import Optional, Tuple
 from collections.abc import Callable
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont

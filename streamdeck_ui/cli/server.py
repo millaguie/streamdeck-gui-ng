@@ -71,7 +71,6 @@ class CLIStreamDeckServer:
             self.sock.settimeout(CLIStreamDeckServer.SOCKET_CONNECTION_TIMEOUT_SECOND)
         except OSError:
             print("warning: for some reason, unable to utilize CLI commands.")
-            pass
 
         while not self.quit.is_set():
             try:

@@ -2,7 +2,6 @@
 
 import json
 import os
-from typing import Dict
 
 from streamdeck_ui.model import ButtonMultiState, ButtonState, DeckState, DeckStateV1
 

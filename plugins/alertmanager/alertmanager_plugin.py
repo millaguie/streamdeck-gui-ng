@@ -8,9 +8,8 @@ import sys
 import tempfile
 import time
 import webbrowser
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import requests
 from requests.auth import HTTPBasicAuth
@@ -25,7 +24,7 @@ from streamdeck_ui.plugin_system.protocol import LogLevel
 class AlertManagerPlugin(BasePlugin):
     """Plugin for monitoring Prometheus AlertManager."""
 
-    def __init__(self, socket_path: str, config: Dict[str, Any]):
+    def __init__(self, socket_path: str, config: dict[str, Any]):
         super().__init__(socket_path, config)
 
         # Configuration
@@ -157,7 +156,7 @@ class AlertManagerPlugin(BasePlugin):
         """Called when button is no longer visible."""
         self.log(LogLevel.INFO, "Button now hidden")
 
-    def on_config_update(self, config: Dict[str, Any]) -> None:
+    def on_config_update(self, config: dict[str, Any]) -> None:
         """Called when configuration is updated."""
         self.log(LogLevel.INFO, "Configuration updated")
 

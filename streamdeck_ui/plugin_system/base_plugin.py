@@ -6,7 +6,7 @@ import socket
 import sys
 from abc import ABC, abstractmethod
 from io import BytesIO
-from typing import Any, Dict, Optional
+from typing import Any
 
 from PIL import Image
 
@@ -252,17 +252,14 @@ class BasePlugin(ABC):
 
         Plugins should perform initialization here.
         """
-        pass
 
     @abstractmethod
     def on_button_pressed(self) -> None:
         """Called when the button is pressed."""
-        pass
 
     @abstractmethod
     def on_button_released(self) -> None:
         """Called when the button is released."""
-        pass
 
     @abstractmethod
     def on_button_visible(self, page: int, button: int) -> None:
@@ -272,12 +269,10 @@ class BasePlugin(ABC):
             page: Page number
             button: Button number
         """
-        pass
 
     @abstractmethod
     def on_button_hidden(self) -> None:
         """Called when button is no longer visible."""
-        pass
 
     def on_config_update(self, config: dict[str, Any]) -> None:  # noqa: B027
         """Called when configuration is updated.
@@ -287,14 +282,12 @@ class BasePlugin(ABC):
         Args:
             config: New configuration
         """
-        pass
 
     def on_shutdown(self) -> None:  # noqa: B027
         """Called when plugin should shut down.
 
         Default implementation does nothing. Override for cleanup.
         """
-        pass
 
     def on_error(self, error: str, details: str | None = None) -> None:
         """Called when an error message is received from host.
@@ -316,7 +309,6 @@ class BasePlugin(ABC):
         Plugins should perform periodic tasks here (e.g., polling APIs,
         updating display, etc.). This is called approximately once per second.
         """
-        pass
 
     # Main run loop
 

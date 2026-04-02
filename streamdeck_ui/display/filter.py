@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from fractions import Fraction
-from typing import Optional, Tuple
 from collections.abc import Callable
 
 from PIL import Image
@@ -32,7 +31,6 @@ class Filter(ABC):
         :param size: The filter image size
         :type size: Tuple[int, int]
         """
-        pass
 
     @abstractmethod
     def transform(
@@ -63,4 +61,3 @@ class Filter(ABC):
         :return: The transformed output image. If this filter did not modify the input, return None. This signals to the
         pipeline manager that there was no change and a cached version will be moved to the next stage.
         """
-        pass

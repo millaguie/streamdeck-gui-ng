@@ -10,13 +10,13 @@ import threading
 import time
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 from collections.abc import Callable
 
 from PIL import Image
 
 from .protocol import MessageType, ProtocolMessage
-from .schema import LifecycleMode, PluginManifest
+from .schema import PluginManifest
 
 logger = logging.getLogger(__name__)
 

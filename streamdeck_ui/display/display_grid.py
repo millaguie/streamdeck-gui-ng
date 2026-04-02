@@ -1,6 +1,5 @@
 import threading
 from time import sleep, time
-from typing import Dict, List, Optional
 from collections.abc import Callable
 
 from PIL import Image
@@ -193,7 +192,6 @@ class DisplayGrid:
                         except TransportError:
                             # Review - deadlock if you wait on yourself?
                             self.stop()
-                            pass
                             return
 
             self.sync.set()

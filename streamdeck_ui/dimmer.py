@@ -1,5 +1,4 @@
 import threading
-from typing import Optional
 from collections.abc import Callable
 
 from StreamDeck.Transport.Transport import TransportError

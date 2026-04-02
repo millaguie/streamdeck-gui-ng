@@ -7,7 +7,7 @@ import time
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from PIL import Image
 from PIL.ImageQt import ImageQt

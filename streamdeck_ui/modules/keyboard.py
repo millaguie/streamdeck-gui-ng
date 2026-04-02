@@ -1,5 +1,4 @@
 import time
-from typing import Dict, List, Union
 
 from evdev import InputDevice, UInput
 from evdev import ecodes as e

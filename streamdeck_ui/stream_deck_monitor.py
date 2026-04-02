@@ -1,6 +1,5 @@
 from threading import Event, Lock, Thread
 from time import sleep
-from typing import Dict, Optional
 from collections.abc import Callable
 
 from StreamDeck import DeviceManager
@@ -127,7 +126,6 @@ class StreamDeckMonitor:
                             print("Check installation instructions and ensure a udev rule has been added and loaded.")
                             print("https://millaguie.github.io/streamdeck-gui-ng/")
                             showed_open_help = True
-                        pass
 
             # Look for suspended/resumed StreamDecks
             for streamdeck in list(self.streamdecks.values()):

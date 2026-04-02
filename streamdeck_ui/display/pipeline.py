@@ -1,5 +1,4 @@
 from fractions import Fraction
-from typing import Dict, List, Optional, Tuple
 
 from PIL.Image import Image
 

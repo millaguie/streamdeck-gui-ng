@@ -1,5 +1,4 @@
 from fractions import Fraction
-from typing import Optional, Tuple
 from collections.abc import Callable
 
 from PIL import Image, ImageEnhance
@@ -28,7 +27,6 @@ class KeypressFilter(Filter):
     def initialize(self, size: tuple[int, int]):
         self.blank_image = Image.new("RGB", size)
         self.size = size
-        pass
 
     def transform(  # type: ignore[override]
         self,

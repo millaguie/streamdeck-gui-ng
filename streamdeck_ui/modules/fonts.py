@@ -3,7 +3,6 @@
 import os
 import re
 import subprocess  # nosec B404
-from typing import Tuple
 
 from PIL import ImageFont
 
