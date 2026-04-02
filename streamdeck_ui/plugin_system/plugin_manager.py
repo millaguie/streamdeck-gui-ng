@@ -8,10 +8,10 @@ import subprocess
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable
 
 from PIL import Image
 

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from fractions import Fraction
 from collections.abc import Callable
+from fractions import Fraction
 
 from PIL import Image
 

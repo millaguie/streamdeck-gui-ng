@@ -5,9 +5,8 @@ import shlex
 import signal
 import sys
 from functools import partial
-from subprocess import Popen  # nosec - Need to allow users to specify arbitrary commands
-
 from importlib.metadata import PackageNotFoundError, version
+from subprocess import Popen  # nosec - Need to allow users to specify arbitrary commands
 from PySide6.QtCore import QMimeData, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QDrag, QFont, QIcon, QPalette
 from PySide6.QtWidgets import (
@@ -795,13 +794,7 @@ def _apply_button_mode_visibility(tab_ui, mode):
 
 def _build_plugin_configuration_ui(tab, tab_ui, deck_id, page_id, button_id, button_state_id):
     """Build the plugin configuration UI section."""
-    from PySide6.QtWidgets import (
-        QComboBox,
-        QGroupBox,
-        QLabel,
-        QPushButton,
-        QVBoxLayout,
-    )
+    from PySide6.QtWidgets import QComboBox, QGroupBox, QLabel, QPushButton, QVBoxLayout
 
     # Create plugin group box
     plugin_group = QGroupBox("Plugin Configuration")

@@ -1,8 +1,8 @@
 import itertools
 import os
+from collections.abc import Callable
 from fractions import Fraction
 from io import BytesIO
-from collections.abc import Callable
 
 import cairosvg
 import filetype

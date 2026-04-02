@@ -1,6 +1,6 @@
 import threading
-from time import sleep, time
 from collections.abc import Callable
+from time import sleep, time
 
 from PIL import Image
 from StreamDeck.Devices.StreamDeck import StreamDeck

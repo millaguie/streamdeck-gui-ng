@@ -1,6 +1,6 @@
+from collections.abc import Callable
 from threading import Event, Lock, Thread
 from time import sleep
-from collections.abc import Callable
 
 from StreamDeck import DeviceManager
 from StreamDeck.Devices.StreamDeck import StreamDeck
