@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from PIL import Image
-from PIL.ImageQt import ImageQt
+from PIL.ImageQt import toqimage
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QImage, QPixmap
 from StreamDeck.Devices import StreamDeck
@@ -545,7 +545,7 @@ class StreamDeckServer:
         """Returns the QPixmap value for the given button (streamdeck, page, button)"""
         pil_image = self.display_handlers[serial_number].get_image(page, button)
         if pil_image:
-            qt_image = ImageQt(pil_image)
+            qt_image = toqimage(pil_image)
             qt_image = qt_image.convertToFormat(QImage.Format.Format_ARGB32)
             return QPixmap(qt_image)
         return None
