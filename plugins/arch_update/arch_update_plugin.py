@@ -8,7 +8,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Add parent directory to path to import base plugin
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -20,7 +20,7 @@ from streamdeck_ui.plugin_system.protocol import LogLevel
 class ArchUpdatePlugin(BasePlugin):
     """Plugin for monitoring Arch Linux system updates."""
 
-    def __init__(self, socket_path: str, config: Dict[str, Any]):
+    def __init__(self, socket_path: str, config: dict[str, Any]):
         super().__init__(socket_path, config)
 
         # Configuration
@@ -117,7 +117,7 @@ class ArchUpdatePlugin(BasePlugin):
         """Called when button is no longer visible."""
         self.log(LogLevel.INFO, "Button now hidden")
 
-    def on_config_update(self, config: Dict[str, Any]) -> None:
+    def on_config_update(self, config: dict[str, Any]) -> None:
         """Called when configuration is updated."""
         self.log(LogLevel.INFO, "Configuration updated")
 

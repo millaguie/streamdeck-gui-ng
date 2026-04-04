@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from fractions import Fraction
-from typing import Callable, Optional, Tuple
 
 from PIL import Image, ImageEnhance
 
@@ -14,14 +14,14 @@ class PulseFilter(Filter):
     filter_hash: int
 
     def __init__(self):
-        super(PulseFilter, self).__init__()
+        super().__init__()
         self.last_time = Fraction()
         self.pulse_delay = 0.5
         self.brightness = 1
         self.dim_brightness = 0.5
         self.filter_hash = hash(self.__class__)
 
-    def initialize(self, size: Tuple[int, int]):
+    def initialize(self, size: tuple[int, int]):
         pass
 
     def transform(  # type: ignore[override]
@@ -30,7 +30,7 @@ class PulseFilter(Filter):
         get_output: Callable[[int], Image.Image],
         input_changed: bool,
         time: Fraction,
-    ) -> Tuple[Optional[Image.Image], int]:
+    ) -> tuple[Image.Image | None, int]:
         brightness_changed = False
         if time - self.last_time > self.pulse_delay:
             brightness_changed = True

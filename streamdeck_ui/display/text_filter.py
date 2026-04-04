@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from fractions import Fraction
-from typing import Callable, Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
@@ -8,15 +8,15 @@ from streamdeck_ui.display.filter import Filter
 
 
 class TextFilter(Filter):
-    font_blur: Optional[ImageFilter.Kernel] = None
+    font_blur: ImageFilter.Kernel | None = None
     # Static instance - no need to create one per Filter instance
 
-    image: Optional[Image.Image]
+    image: Image.Image | None
 
     def __init__(
         self, text: str, font: str, font_size: int, font_color: str, vertical_align: str, horizontal_align: str
     ):
-        super(TextFilter, self).__init__()
+        super().__init__()
         self.text = text
         self.vertical_align = vertical_align
         self.horizontal_align = horizontal_align
@@ -43,7 +43,7 @@ class TextFilter(Filter):
         # Hashcode should be created for anything that makes this frame unique
         self.hashcode = hash((self.__class__, text, font, font_size, font_color, vertical_align, horizontal_align))
 
-    def initialize(self, size: Tuple[int, int]):
+    def initialize(self, size: tuple[int, int]):
         self.image = Image.new("RGBA", size)
         foreground_draw = ImageDraw.Draw(self.image)
         # Split the text by newline to determine label height
@@ -117,7 +117,7 @@ class TextFilter(Filter):
         get_output: Callable[[int], Image.Image],
         input_changed: bool,
         time: Fraction,
-    ) -> Tuple[Optional[Image.Image], int]:
+    ) -> tuple[Image.Image | None, int]:
         """
         The transformation returns the loaded image, ando overwrites whatever came before.
         """

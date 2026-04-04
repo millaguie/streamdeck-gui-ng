@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from fractions import Fraction
-from typing import Callable, Optional, Tuple
 
 from PIL import Image, ImageEnhance
 
@@ -16,7 +16,7 @@ class KeypressFilter(Filter):
     filter_hash: int
 
     def __init__(self):
-        super(KeypressFilter, self).__init__()
+        super().__init__()
         self.last_time = Fraction()
         self.brightness = 1
         self.dim_brightness = 0.5
@@ -24,10 +24,9 @@ class KeypressFilter(Filter):
         self.active = False
         self.last_state = False
 
-    def initialize(self, size: Tuple[int, int]):
+    def initialize(self, size: tuple[int, int]):
         self.blank_image = Image.new("RGB", size)
         self.size = size
-        pass
 
     def transform(  # type: ignore[override]
         self,
@@ -35,7 +34,7 @@ class KeypressFilter(Filter):
         get_output: Callable[[int], Image.Image],
         input_changed: bool,
         time: Fraction,
-    ) -> Tuple[Optional[Image.Image], int]:
+    ) -> tuple[Image.Image | None, int]:
         frame_hash = hash((self.filter_hash, self.active))
         if input_changed or self.active != self.last_state:
             self.last_state = self.active

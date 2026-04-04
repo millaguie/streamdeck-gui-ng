@@ -1,6 +1,6 @@
 import threading
+from collections.abc import Callable
 from time import sleep, time
-from typing import Callable, Dict, List, Optional
 
 from PIL import Image
 from StreamDeck.Devices.StreamDeck import StreamDeck
@@ -26,7 +26,7 @@ class DisplayGrid:
         self,
         lock: threading.Lock,
         streamdeck: StreamDeck,
-        pages: List[int],
+        pages: list[int],
         cpu_callback: Callable[[str, int], None],
         fps: int = 25,
     ):
@@ -60,12 +60,12 @@ class DisplayGrid:
         # Instance of EmptyFilter shared by all pipelines related to this
         # DisplayGrid instance
 
-        self.pages: Dict[int, Dict[int, Pipeline]] = {}
+        self.pages: dict[int, dict[int, Pipeline]] = {}
         # A dictionary of lists of pipelines. Each page has
         # a list, corresponding to each button.
 
         self.current_page: int = -1
-        self.pipeline_thread: Optional[threading.Thread] = None
+        self.pipeline_thread: threading.Thread | None = None
         self.quit = threading.Event()
         self.fps = fps
         # Configure the maximum frame rate we want to achieve
@@ -89,7 +89,7 @@ class DisplayGrid:
         with self.lock:
             del self.pages[page]
 
-    def replace(self, page: int, button: int, filters: List[Filter]):
+    def replace(self, page: int, button: int, filters: list[Filter]):
         with self.lock:
             pipeline = Pipeline()
             pipeline.add(self._empty_filter)
@@ -101,7 +101,7 @@ class DisplayGrid:
             pipeline.add(keypress)
             self.pages[page][button] = pipeline
 
-    def get_image(self, page: int, button: int) -> Optional[Image.Image]:
+    def get_image(self, page: int, button: int) -> Image.Image | None:
         with self.lock:
             # REVIEW: Consider returning not the last result, but a thumbnail
             # or something that represents the current "static" look of
@@ -192,7 +192,6 @@ class DisplayGrid:
                         except TransportError:
                             # Review - deadlock if you wait on yourself?
                             self.stop()
-                            pass
                             return
 
             self.sync.set()

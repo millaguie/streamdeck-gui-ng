@@ -1,8 +1,8 @@
 import itertools
 import os
+from collections.abc import Callable
 from fractions import Fraction
 from io import BytesIO
-from typing import Callable, Optional, Tuple
 
 import cairosvg
 import filetype
@@ -18,7 +18,7 @@ class ImageFilter(Filter):
     """
 
     def __init__(self, file: str):
-        super(ImageFilter, self).__init__()
+        super().__init__()
         self.file = os.path.expanduser(file)
         try:
             file_stats = os.stat(file)
@@ -32,7 +32,7 @@ class ImageFilter(Filter):
         # Create a tuple of the file metadata for creating a hashcode.
         self.metadata = (self.__class__, self.file, file_size, mod_time)
 
-    def initialize(self, size: Tuple[int, int]):
+    def initialize(self, size: tuple[int, int]):
         # Each frame needs to have a unique hashcode.
         image_hash = hash(self.metadata)
         frame_duration = []
@@ -100,7 +100,7 @@ class ImageFilter(Filter):
         get_output: Callable[[int], Image.Image],
         input_changed: bool,
         time: Fraction,
-    ) -> Tuple[Optional[Image.Image], int]:
+    ) -> tuple[Image.Image | None, int]:
         """
         The transformation returns the loaded image, ando overwrites whatever came before.
         """

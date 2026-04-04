@@ -7,10 +7,10 @@ import time
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from PIL import Image
-from PIL.ImageQt import ImageQt
+from PIL.ImageQt import toqimage
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QImage, QPixmap
 from StreamDeck.Devices import StreamDeck
@@ -55,13 +55,13 @@ class StreamDeckServer:
     managing multiple Stream Decks.
     """
 
-    decks_by_serial: Dict[str, StreamDeck.StreamDeck] = {}
+    decks_by_serial: dict[str, StreamDeck.StreamDeck] = {}
     "Lookup with serial number -> StreamDeck"
 
-    decks_map_id_to_serial: Dict[str, str] = {}
+    decks_map_id_to_serial: dict[str, str] = {}
     "Lookup with device.id -> serial number"
 
-    state: Dict[str, DeckState] = {}
+    state: dict[str, DeckState] = {}
     "The data structure holding configuration for all Stream Decks by serial number"
 
     key_event_lock: threading.Lock
@@ -70,16 +70,16 @@ class StreamDeckServer:
     lock: threading.Lock = threading.Lock()
     "Lock to coordinate polling, updates etc to Stream Decks"
 
-    display_handlers: Dict[str, DisplayGrid] = {}
+    display_handlers: dict[str, DisplayGrid] = {}
     "Lookup with serial number for each Stream Deck display handler"
 
-    dimmers: Dict[str, Dimmer] = {}
+    dimmers: dict[str, Dimmer] = {}
     "Lookup with serial number for each Stream Deck dimmer"
 
-    monitor: Optional[StreamDeckMonitor] = None
+    monitor: StreamDeckMonitor | None = None
     "Monitors for Stream Deck(s) attached to the computer"
 
-    plugin_manager: Optional[PluginManager] = None
+    plugin_manager: PluginManager | None = None
     "Plugin manager for handling plugins"
 
     plugevents = StreamDeckSignalEmitter()
@@ -89,15 +89,15 @@ class StreamDeckServer:
     "Use the connect method on the key_pressed signal to subscribe"
 
     def __init__(self) -> None:
-        self.decks_by_serial: Dict[str, StreamDeck.StreamDeck] = {}
+        self.decks_by_serial: dict[str, StreamDeck.StreamDeck] = {}
 
         # REVIEW: Should we use the same lock as the display? What exactly
         # are we protecting? The UI is signaled via message passing.
         self.key_event_lock = threading.Lock()
-        self.display_handlers: Dict[str, DisplayGrid] = {}
+        self.display_handlers: dict[str, DisplayGrid] = {}
 
         self.lock: threading.Lock = threading.Lock()
-        self.dimmers: Dict[str, Dimmer] = {}
+        self.dimmers: dict[str, Dimmer] = {}
 
         # REVIEW: Should we just create one signal emitter for
         # plug events and key signals?
@@ -310,7 +310,7 @@ class StreamDeckServer:
         return new_page_index
 
     @staticmethod
-    def _calculate_new_index(items: List[int]) -> int:
+    def _calculate_new_index(items: list[int]) -> int:
         """Calculates the next free index for a list of items"""
         items_set = set(items)
         max_item = max(items) if items else 0
@@ -369,11 +369,11 @@ class StreamDeckServer:
     def stop(self):
         self.monitor.stop()
 
-    def get_deck_layout(self, serial_number: str) -> Tuple[int, int]:
+    def get_deck_layout(self, serial_number: str) -> tuple[int, int]:
         """Returns a tuple containing the number of rows and columns for the specified Stream Deck"""
         return self.decks_by_serial[serial_number].key_layout()
 
-    def _button_state(self, serial_number: str, page: int, button: int, state: Optional[int] = None) -> ButtonState:
+    def _button_state(self, serial_number: str, page: int, button: int, state: int | None = None) -> ButtonState:
         multi_state = self._button_multi_state(serial_number, page, button)
         # if no state is specified, use the current state
         choose_state = state or multi_state.state
@@ -401,7 +401,7 @@ class StreamDeckServer:
         """Returns the state of a button"""
         return self._button_multi_state(serial_number, page, button).state
 
-    def get_button_states(self, serial_number: str, page: int, button: int) -> List[int]:
+    def get_button_states(self, serial_number: str, page: int, button: int) -> list[int]:
         """Returns the states of a button"""
         return sorted(list(self._button_multi_state(serial_number, page, button).states.keys()))
 
@@ -541,11 +541,11 @@ class StreamDeckServer:
         """Returns the background color set for the specified button"""
         return self._button_state(serial_number, page, button).background_color
 
-    def get_button_icon_pixmap(self, serial_number: str, page: int, button: int) -> Optional[QPixmap]:
+    def get_button_icon_pixmap(self, serial_number: str, page: int, button: int) -> QPixmap | None:
         """Returns the QPixmap value for the given button (streamdeck, page, button)"""
         pil_image = self.display_handlers[serial_number].get_image(page, button)
         if pil_image:
-            qt_image = ImageQt(pil_image)
+            qt_image = toqimage(pil_image)
             qt_image = qt_image.convertToFormat(QImage.Format.Format_ARGB32)
             return QPixmap(qt_image)
         return None
@@ -682,7 +682,7 @@ class StreamDeckServer:
         self.dimmers[deck_id].brightness = brightness
         self.dimmers[deck_id].reset()
 
-    def get_pages(self, serial_number: str) -> List[int]:
+    def get_pages(self, serial_number: str) -> list[int]:
         """Returns pages for the specified stream deck"""
         return sorted(list(self.state[serial_number].buttons.keys()))
 
@@ -765,7 +765,7 @@ class StreamDeckServer:
         """
         display_handler = self.display_handlers[serial_number]
         button_settings = self._button_state(serial_number, page, button)
-        filters: List[Filter] = []
+        filters: list[Filter] = []
 
         background_color = button_settings.background_color or DEFAULT_BACKGROUND_COLOR
         filters.append(BackgroundColorFilter(background_color))
@@ -872,13 +872,13 @@ class StreamDeckServer:
         button_settings.plugin_id = plugin_id
         self._save_state()
 
-    def get_button_plugin_config(self, serial_number: str, page: int, button: int) -> Dict[str, Any]:
+    def get_button_plugin_config(self, serial_number: str, page: int, button: int) -> dict[str, Any]:
         """Get the plugin configuration for a button."""
         state = self.get_button_state(serial_number, page, button)
         button_settings = self.get_button_state_object(serial_number, page, button, state)
         return button_settings.plugin_config
 
-    def set_button_plugin_config(self, serial_number: str, page: int, button: int, config: Dict[str, Any]) -> None:
+    def set_button_plugin_config(self, serial_number: str, page: int, button: int, config: dict[str, Any]) -> None:
         """Set the plugin configuration for a button."""
         assert self.plugin_manager is not None
 
@@ -912,7 +912,7 @@ class StreamDeckServer:
         page: int,
         button: int,
         plugin_id: str,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         can_switch_page: bool = False,
     ) -> bool:
         """Attach a plugin to a button and start it.
@@ -997,7 +997,7 @@ class StreamDeckServer:
         self.set_button_plugin_can_switch_page(serial_number, page, button, False)
 
     def _handle_plugin_image_update(
-        self, deck_serial: str, page: int, button: int, update_data: Dict[str, Any]
+        self, deck_serial: str, page: int, button: int, update_data: dict[str, Any]
     ) -> None:
         """Handle image update request from plugin."""
         try:
@@ -1061,7 +1061,7 @@ class StreamDeckServer:
         except Exception as e:
             logger.error(f"Error handling plugin image update: {e}", exc_info=True)
 
-    def _handle_plugin_page_switch(self, deck_serial: str, page: int, button: int, duration: Optional[int]) -> None:
+    def _handle_plugin_page_switch(self, deck_serial: str, page: int, button: int, duration: int | None) -> None:
         """Handle page switch request from plugin."""
         try:
             if duration:

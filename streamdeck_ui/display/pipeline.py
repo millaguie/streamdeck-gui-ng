@@ -1,5 +1,4 @@
 from fractions import Fraction
-from typing import Dict, List, Optional, Tuple
 
 from PIL.Image import Image
 
@@ -8,20 +7,20 @@ from streamdeck_ui.display.filter import Filter
 
 class Pipeline:
     def __init__(self) -> None:
-        self.filters: List[Tuple[Filter, Optional[Image]]] = []
+        self.filters: list[tuple[Filter, Image | None]] = []
         self.first_run = True
-        self.output_cache: Dict[int, Image] = {}
+        self.output_cache: dict[int, Image] = {}
 
     def add(self, filter: Filter) -> None:
         self.filters.append((filter, None))
         self.first_run = True
 
-    def execute(self, time: Fraction) -> Optional[Tuple[Image, int]]:
+    def execute(self, time: Fraction) -> tuple[Image, int] | None:
         """
         Executes all the filter in the pipeline and returns the final image, or None if the pipeline did not yield any changes.
         """
 
-        image: Optional[Image] = None
+        image: Image | None = None
         is_modified = False
         pipeline_hash = 0
 
@@ -65,7 +64,7 @@ class Pipeline:
             return (image, pipeline_hash)
         return None
 
-    def last_result(self) -> Optional[Image]:
+    def last_result(self) -> Image | None:
         """
         Returns the last known output of the pipeline
         """

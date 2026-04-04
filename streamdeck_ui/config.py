@@ -2,7 +2,6 @@
 
 import json
 import os
-from typing import Dict
 
 from streamdeck_ui.model import ButtonMultiState, ButtonState, DeckState, DeckStateV1
 
@@ -29,7 +28,7 @@ def config_file_need_migration(config_file_path: str) -> bool:
     """Check if the config file need to be updated"""
     if not os.path.isfile(config_file_path):
         return False
-    with open(config_file_path, "r") as config_file:
+    with open(config_file_path) as config_file:
         config = json.load(config_file)
         file_version = config.get("streamdeck_ui_version", CONFIG_FILE_VERSION)
         return file_version != CONFIG_FILE_VERSION
@@ -48,10 +47,10 @@ def do_config_file_migration() -> None:
     write_state_to_config(STATE_FILE, state)
 
 
-def read_state_from_config(config_file_path: str) -> Dict[str, DeckState]:
+def read_state_from_config(config_file_path: str) -> dict[str, DeckState]:
     """Open the config file and return its content as a dict"""
 
-    with open(config_file_path, "r") as config_file:
+    with open(config_file_path) as config_file:
         config = json.load(config_file)
         file_version = config.get("streamdeck_ui_version", 0)
         if file_version not in CONFIG_FILE_SUPPORTED_VERSIONS:
@@ -66,7 +65,7 @@ def read_state_from_config(config_file_path: str) -> Dict[str, DeckState]:
         return state
 
 
-def validate_current_page(state: Dict[str, DeckState]) -> None:
+def validate_current_page(state: dict[str, DeckState]) -> None:
     """Validate that the current page is valid, if the current page is not valid, set it to the first page
     of the deck"""
     for _deck_id, deck_state in state.items():
@@ -74,7 +73,7 @@ def validate_current_page(state: Dict[str, DeckState]) -> None:
             deck_state.page = next(iter(deck_state.buttons))
 
 
-def validate_current_button_state(state: Dict[str, DeckState]) -> None:
+def validate_current_button_state(state: dict[str, DeckState]) -> None:
     """Validate that the current button state is valid, if the current button state is not valid, set it to the first state
     of the button"""
     for _deck_id, deck_state in state.items():
@@ -84,7 +83,7 @@ def validate_current_button_state(state: Dict[str, DeckState]) -> None:
                     button_state.state = next(iter(button_state.states))
 
 
-def write_state_to_config(config_file_path: str, state: Dict[str, DeckState]) -> None:
+def write_state_to_config(config_file_path: str, state: dict[str, DeckState]) -> None:
     """Write the state to the config file"""
     temp_file_path = config_file_path + ".tmp"
     try:
@@ -100,7 +99,7 @@ def write_state_to_config(config_file_path: str, state: Dict[str, DeckState]) ->
         os.replace(temp_file_path, os.path.realpath(config_file_path))
 
 
-def _to_deck_states(state: dict) -> Dict[str, DeckState]:
+def _to_deck_states(state: dict) -> dict[str, DeckState]:
     return {
         deck_id: DeckState(
             buttons={
@@ -120,7 +119,7 @@ def _to_deck_states(state: dict) -> Dict[str, DeckState]:
     }
 
 
-def _migrate_deck_state_from_previous_version(state: dict) -> Dict[str, DeckState]:
+def _migrate_deck_state_from_previous_version(state: dict) -> dict[str, DeckState]:
     deck_state = _to_deck_states_v1(state)
     return {
         deck_id: DeckState(
@@ -150,7 +149,7 @@ def _migrate_button_state_to_multi_state(button: ButtonState) -> ButtonMultiStat
     )
 
 
-def _to_deck_states_v1(state: dict) -> Dict[str, DeckStateV1]:
+def _to_deck_states_v1(state: dict) -> dict[str, DeckStateV1]:
     """Convert a dict to a DeckStateV1 object"""
     return {
         deck_id: DeckStateV1(
@@ -200,7 +199,7 @@ def _to_button_multi_state(button: dict) -> ButtonMultiState:
     )
 
 
-def _to_deck_config(state: Dict[str, DeckState]) -> dict:
+def _to_deck_config(state: dict[str, DeckState]) -> dict:
     return {
         deck_id: {
             "buttons": {

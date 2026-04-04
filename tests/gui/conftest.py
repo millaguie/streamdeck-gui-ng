@@ -1,4 +1,3 @@
-from typing import Tuple
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -31,7 +30,7 @@ def mock_classes():
 
 
 @pytest.fixture
-def api_and_window(mock_classes) -> Tuple[MainWindow, TestableStreamDeckServer]:
+def api_and_window(mock_classes) -> tuple[MainWindow, TestableStreamDeckServer]:
     """Return the application window.
     the application will behave as if a deck was connected with a single button
     and two pages exists ."""

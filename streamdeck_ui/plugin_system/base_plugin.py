@@ -6,7 +6,7 @@ import socket
 import sys
 from abc import ABC, abstractmethod
 from io import BytesIO
-from typing import Any, Dict, Optional
+from typing import Any
 
 from PIL import Image
 
@@ -31,7 +31,7 @@ class BasePlugin(ABC):
     the abstract methods.
     """
 
-    def __init__(self, socket_path: str, config: Dict[str, Any]):
+    def __init__(self, socket_path: str, config: dict[str, Any]):
         """Initialize plugin.
 
         Args:
@@ -40,7 +40,7 @@ class BasePlugin(ABC):
         """
         self.socket_path = socket_path
         self.config = config
-        self.socket: Optional[socket.socket] = None
+        self.socket: socket.socket | None = None
         self.running = False
         self.logger = self._setup_logger()
 
@@ -80,7 +80,7 @@ class BasePlugin(ABC):
         data = message.to_bytes()
         self.socket.sendall(data)
 
-    def receive_message(self, timeout: Optional[float] = None) -> Optional[ProtocolMessage]:
+    def receive_message(self, timeout: float | None = None) -> ProtocolMessage | None:
         """Receive a message from the host.
 
         Args:
@@ -112,7 +112,7 @@ class BasePlugin(ABC):
 
         return ProtocolMessage.from_bytes(message_data)
 
-    def _recv_exact(self, n: int) -> Optional[bytes]:
+    def _recv_exact(self, n: int) -> bytes | None:
         """Receive exactly n bytes from socket."""
         if self.socket is None:
             return None
@@ -142,13 +142,13 @@ class BasePlugin(ABC):
 
     def update_image_render(
         self,
-        text: Optional[str] = None,
-        icon: Optional[str] = None,
-        background_color: Optional[str] = None,
-        font_color: Optional[str] = None,
-        font_size: Optional[int] = None,
-        text_vertical_align: Optional[str] = None,
-        text_horizontal_align: Optional[str] = None,
+        text: str | None = None,
+        icon: str | None = None,
+        background_color: str | None = None,
+        font_color: str | None = None,
+        font_size: int | None = None,
+        text_vertical_align: str | None = None,
+        text_horizontal_align: str | None = None,
     ) -> None:
         """Update button image with rendering instructions.
 
@@ -172,7 +172,7 @@ class BasePlugin(ABC):
         )
         self.send_message(message)
 
-    def request_page_switch(self, duration: Optional[int] = None) -> None:
+    def request_page_switch(self, duration: int | None = None) -> None:
         """Request to switch to the page containing this button.
 
         Args:
@@ -201,7 +201,7 @@ class BasePlugin(ABC):
         message = create_ready_message()
         self.send_message(message)
 
-    def send_error(self, error: str, details: Optional[str] = None) -> None:
+    def send_error(self, error: str, details: str | None = None) -> None:
         """Send error message to host.
 
         Args:
@@ -252,17 +252,14 @@ class BasePlugin(ABC):
 
         Plugins should perform initialization here.
         """
-        pass
 
     @abstractmethod
     def on_button_pressed(self) -> None:
         """Called when the button is pressed."""
-        pass
 
     @abstractmethod
     def on_button_released(self) -> None:
         """Called when the button is released."""
-        pass
 
     @abstractmethod
     def on_button_visible(self, page: int, button: int) -> None:
@@ -272,14 +269,12 @@ class BasePlugin(ABC):
             page: Page number
             button: Button number
         """
-        pass
 
     @abstractmethod
     def on_button_hidden(self) -> None:
         """Called when button is no longer visible."""
-        pass
 
-    def on_config_update(self, config: Dict[str, Any]) -> None:  # noqa: B027
+    def on_config_update(self, config: dict[str, Any]) -> None:  # noqa: B027
         """Called when configuration is updated.
 
         Default implementation does nothing. Override if needed.
@@ -287,16 +282,14 @@ class BasePlugin(ABC):
         Args:
             config: New configuration
         """
-        pass
 
     def on_shutdown(self) -> None:  # noqa: B027
         """Called when plugin should shut down.
 
         Default implementation does nothing. Override for cleanup.
         """
-        pass
 
-    def on_error(self, error: str, details: Optional[str] = None) -> None:
+    def on_error(self, error: str, details: str | None = None) -> None:
         """Called when an error message is received from host.
 
         Default implementation logs the error. Override if needed.
@@ -316,7 +309,6 @@ class BasePlugin(ABC):
         Plugins should perform periodic tasks here (e.g., polling APIs,
         updating display, etc.). This is called approximately once per second.
         """
-        pass
 
     # Main run loop
 

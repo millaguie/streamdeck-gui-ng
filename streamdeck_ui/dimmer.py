@@ -1,5 +1,5 @@
 import threading
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from StreamDeck.Transport.Transport import TransportError
 
@@ -25,7 +25,7 @@ class Dimmer:
         self.__stopped = False
         self.dimmed = True
         "True if the Stream Deck is dimmed, False otherwise"
-        self.__timer: Optional[threading.Timer] = None
+        self.__timer: threading.Timer | None = None
 
     def dimmed_brightness(self) -> int:
         """Calculates the effective brightness when dimmed.

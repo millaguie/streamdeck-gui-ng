@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 @dataclass
@@ -38,7 +38,7 @@ class ButtonState:
     """Force icon refresh after command execution"""
     plugin_id: str = ""
     """Plugin ID if this button is controlled by a plugin"""
-    plugin_config: Dict[str, Any] = field(default_factory=dict)
+    plugin_config: dict[str, Any] = field(default_factory=dict)
     """Plugin configuration"""
     plugin_can_switch_page: bool = False
     """Whether the plugin can request page switches"""
@@ -48,13 +48,13 @@ class ButtonState:
 class ButtonMultiState:
     state: int = 0
     """Current displayed state of the button"""
-    states: Dict[int, ButtonState] = field(default_factory=dict)
+    states: dict[int, ButtonState] = field(default_factory=dict)
     """States of the button"""
 
 
 @dataclass
 class DeckState:
-    buttons: Dict[int, Dict[int, ButtonMultiState]] = field(default_factory=dict)
+    buttons: dict[int, dict[int, ButtonMultiState]] = field(default_factory=dict)
     """State of Pages/buttons of the StreamDeck"""
     display_timeout: int = 1800
     """Timeout in seconds before dimming the StreamDeck display"""
@@ -74,7 +74,7 @@ class DeckState:
 class DeckStateV1:
     """Old DeckState class, used for backward compatibility"""
 
-    buttons: Dict[int, Dict[int, ButtonState]] = field(default_factory=dict)
+    buttons: dict[int, dict[int, ButtonState]] = field(default_factory=dict)
     """State of Pages/buttons of the StreamDeck"""
     display_timeout: int = 1800
     """Timeout in seconds before dimming the StreamDeck display"""

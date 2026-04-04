@@ -64,7 +64,6 @@ class StreamDeckMock(StreamDeck.StreamDeck):
         Delete handler for the StreamDeck, automatically closing the transport
         if it is currently open and terminating the transport reader thread.
         """
-        pass
 
         # states = self.device.read(1 + self.KEY_COUNT)
         # if states is None:
@@ -90,7 +89,6 @@ class StreamDeckMock(StreamDeck.StreamDeck):
 
         .. seealso:: See :func:`~StreamDeck.open` for the corresponding open method.
         """
-        pass
 
     def is_open(self):
         """
@@ -200,5 +198,3 @@ class StreamDeckMock(StreamDeck.StreamDeck):
                                  If `None`, the key will be cleared to a black
                                  color.
         """
-
-    pass

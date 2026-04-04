@@ -1,5 +1,4 @@
 import time
-from typing import Dict, List, Union
 
 from evdev import InputDevice, UInput
 from evdev import ecodes as e
@@ -18,12 +17,12 @@ _DELAY_KEYSYM = 2000
 _DEFAULT_ADDITIONAL_DELAY = 5
 
 # fmt: off
-_SPECIAL_KEYS: Dict[str, str] = {
+_SPECIAL_KEYS: dict[str, str] = {
     "plus": "+",
     "comma": ",",
     "delay": "delay",
 }
-_OLD_NUMPAD_KEYS: Dict[str, int] = {
+_OLD_NUMPAD_KEYS: dict[str, int] = {
     "numpad_0": e.KEY_KP0,
     "numpad_1": e.KEY_KP1,
     "numpad_2": e.KEY_KP2,
@@ -41,7 +40,7 @@ _OLD_NUMPAD_KEYS: Dict[str, int] = {
     "numpad_subtract": e.KEY_KPMINUS,
     "numpad_add": e.KEY_KPPLUS,
 }
-_OLD_PYNPUT_KEYS: Dict[str, int] = {
+_OLD_PYNPUT_KEYS: dict[str, int] = {
     "media_volume_mute": e.KEY_MUTE,
     "media_volume_down": e.KEY_VOLUMEDOWN,
     "media_volume_up": e.KEY_VOLUMEUP,
@@ -55,7 +54,7 @@ _OLD_PYNPUT_KEYS: Dict[str, int] = {
     "caps_lock": e.KEY_CAPSLOCK,
     "scroll_lock": e.KEY_SCROLLLOCK,
 }
-_MODIFIER_KEYS: Dict[str, int] = {
+_MODIFIER_KEYS: dict[str, int] = {
     "ctrl": e.KEY_LEFTCTRL,
     "alt": e.KEY_LEFTALT,
     "alt_gr": e.KEY_RIGHTALT,
@@ -66,7 +65,7 @@ _MODIFIER_KEYS: Dict[str, int] = {
 }
 
 _BAD_ECODES = ['KEY_MAX', 'KEY_CNT']
-_KEY_MAPPING: Dict[str, int] = {
+_KEY_MAPPING: dict[str, int] = {
     'a': e.KEY_A,
     'b': e.KEY_B,
     'c': e.KEY_C,
@@ -165,7 +164,7 @@ _KEY_MAPPING: Dict[str, int] = {
     '?': e.KEY_SLASH,
     '~': e.KEY_GRAVE,
 }
-_SHIFT_KEY_MAPPING: Dict[str, int] = {
+_SHIFT_KEY_MAPPING: dict[str, int] = {
     '!': e.KEY_1,
     '@': e.KEY_2,
     '#': e.KEY_3,
@@ -236,7 +235,7 @@ class UInputWrapper:
 _UINPUT = UInputWrapper()
 
 
-def parse_delay(key: Union[str, int]) -> Union[str, int]:
+def parse_delay(key: str | int) -> str | int:
     if isinstance(key, int) or not key.startswith("delay"):
         return key
     key = key.replace("delay", "")
@@ -251,13 +250,13 @@ def parse_delay(key: Union[str, int]) -> Union[str, int]:
 
 
 def parse_keys(
-        key: Union[str, int], key_type: Union[Dict[str, int], Dict[str, str]]) -> Union[str, int]:  # fmt: skip
+        key: str | int, key_type: dict[str, int] | dict[str, str]) -> str | int:  # fmt: skip
     if isinstance(key, int):
         return key
     return key_type.get(key, key)
 
 
-def parse_keys_as_keycodes(keys: str) -> List[List[Union[str, int]]]:
+def parse_keys_as_keycodes(keys: str) -> list[list[str | int]]:
     stripped = keys.strip().replace(" ", "").lower()
     if not stripped:
         return []
@@ -272,7 +271,7 @@ def parse_keys_as_keycodes(keys: str) -> List[List[Union[str, int]]]:
         # replace any string with e.KEY_<string>
         individual = [getattr(e, f"KEY_{key.upper()}", key) for key in individual]
         # check if delay
-        parsed: List[Union[str, int]] = [parse_delay(key) for key in individual]
+        parsed: list[str | int] = [parse_delay(key) for key in individual]
         # replace special keys
         parsed = [parse_keys(key, _SPECIAL_KEYS) for key in parsed]
         # replace old numpad keys
@@ -356,7 +355,7 @@ def keyboard_write(string: str):
             print(f"Unsupported character: {char}")
 
 
-_PRESS_KEY_THREADS: List[QThread] = []
+_PRESS_KEY_THREADS: list[QThread] = []
 
 
 class KeyboardThread(QThread):
@@ -401,7 +400,7 @@ def keyboard_press_keys(keys: str):
     thread.start()
 
 
-def get_valid_key_names() -> List[str]:
+def get_valid_key_names() -> list[str]:
     """Returns a list of valid key names."""
     key_names = [key for key in _SUPPORTED_KEYS]
     key_names.extend(_SPECIAL_KEYS.keys())
@@ -425,7 +424,7 @@ class KeyPressAutoComplete(QCompleter):
     allowed_keys = get_valid_key_names()
 
     def __init__(self, parent=None):
-        super(KeyPressAutoComplete, self).__init__(parent)
+        super().__init__(parent)
         model = QStringListModel()
         model.setStringList(self.allowed_keys)
         self.setModel(model)
