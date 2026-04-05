@@ -697,10 +697,12 @@ def build_button_state_form(tab) -> None:
 
     # Determine current button mode based on state
     current_mode = _determine_button_mode(button_state)
-    # Set the mode selector
+    # Block signals while setting initial value to avoid triggering the handler
+    mode_selector.blockSignals(True)
     mode_index = mode_selector.findData(current_mode)
     if mode_index >= 0:
         mode_selector.setCurrentIndex(mode_index)
+    mode_selector.blockSignals(False)
 
     # Connect mode selector to handler
     mode_selector.currentIndexChanged.connect(
@@ -756,9 +758,6 @@ def _handle_button_mode_change(tab, tab_ui, deck_id, page_id, button_id, button_
 
     # Apply visibility changes
     _apply_button_mode_visibility(tab_ui, mode)
-
-    # Rebuild the form to reflect changes
-    build_button_state_form(tab)
 
 
 def _apply_button_mode_visibility(tab_ui, mode):

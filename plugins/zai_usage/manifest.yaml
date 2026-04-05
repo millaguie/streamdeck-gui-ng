@@ -1,0 +1,43 @@
+name: Z.ai Usage Monitor
+version: 1.0.0
+description: Shows Z.ai (GLM Coding) plan consumption (5h and 7d token windows) with progress bars and reset times.
+author: StreamDeck UI Community
+entry_point: zai_usage_plugin.py
+license: MIT
+
+lifecycle_mode: always_running
+can_switch_page: false
+
+max_retries: 5
+retry_delay: 30
+
+variables:
+  - name: api_token
+    type: password
+    description: "Z.ai API key (leave empty to auto-read from opencode auth.json)"
+    required: false
+
+  - name: opencode_auth_path
+    type: file_path
+    description: "Path to opencode auth.json (default ~/.local/share/opencode/auth.json)"
+    required: false
+
+  - name: poll_interval
+    type: int
+    description: Polling interval in seconds
+    required: false
+    default: 300
+
+  - name: display_mode
+    type: string
+    description: "Display mode: 'compact' shows 5h/7d on one screen, 'rotate' cycles between views"
+    required: false
+    default: compact
+
+  - name: rotate_interval
+    type: int
+    description: Seconds between view rotation (only used in rotate mode)
+    required: false
+    default: 5
+
+icon: zai_icon.png
