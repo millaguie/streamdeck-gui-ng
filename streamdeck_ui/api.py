@@ -4,6 +4,7 @@ import logging
 import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
@@ -117,14 +118,19 @@ class StreamDeckServer:
         """Shutdown the StreamDeck server and cleanup all resources."""
         logger.info("Shutting down StreamDeck server...")
 
-        # Stop all plugin instances
+        # Stop all plugin instances in parallel
         if self.plugin_manager:
             logger.info("Stopping all plugin instances...")
-            for instance_id in list(self.plugin_manager.instances.keys()):
-                try:
-                    self.plugin_manager.stop_instance(instance_id)
-                except Exception as e:
-                    logger.error(f"Error stopping plugin instance {instance_id}: {e}")
+            instance_ids = list(self.plugin_manager.instances.keys())
+            if instance_ids:
+                def _stop_instance(instance_id):
+                    try:
+                        self.plugin_manager.stop_instance(instance_id)
+                    except Exception as e:
+                        logger.error(f"Error stopping plugin instance {instance_id}: {e}")
+
+                with ThreadPoolExecutor(max_workers=len(instance_ids)) as executor:
+                    executor.map(_stop_instance, instance_ids)
 
         # Stop dimmers
         for serial_number in list(self.dimmers.keys()):
@@ -257,9 +263,6 @@ class StreamDeckServer:
         )
         self.dimmers[serial_number].reset()
 
-        # Restore plugins from saved state
-        self._restore_plugins_for_deck(serial_number)
-
         self.plugevents.attached.emit(
             {
                 "id": streamdeck_id,
@@ -268,6 +271,11 @@ class StreamDeckServer:
                 "layout": streamdeck.key_layout(),
             }
         )
+
+        # Restore plugins in background so UI is not blocked
+        threading.Thread(
+            target=self._restore_plugins_for_deck, args=(serial_number,), daemon=True
+        ).start()
 
     def set_default_state(self, serial_number: str, deck_type: str):
         if serial_number in self.state:
@@ -451,6 +459,45 @@ class StreamDeckServer:
         self._update_button_filters(serial_number, page, target_button)
         display_handler = self.display_handlers[serial_number]
         display_handler.synchronize()
+
+    def is_button_empty(self, serial_number: str, page: int, button: int) -> bool:
+        """Returns True if a button has no configuration (all default values)"""
+        multi_state = self._button_multi_state(serial_number, page, button)
+        for state in multi_state.states.values():
+            if state != ButtonState():
+                return False
+        return True
+
+    def find_first_free_button(self, serial_number: str, page: int) -> int | None:
+        """Returns the index of the first empty button on the given page, or None if all are occupied"""
+        key_count = self.decks_by_serial[serial_number].key_count()
+        for button_index in range(key_count):
+            if self.is_button_empty(serial_number, page, button_index):
+                return button_index
+        return None
+
+    def move_button_to_page(self, serial_number: str, source_page: int, button_index: int, target_page: int) -> bool:
+        """Moves a button to the first free slot on the target page. Returns True on success."""
+        target_button = self.find_first_free_button(serial_number, target_page)
+        if target_button is None:
+            return False
+
+        # Copy button data to target
+        source_data = self.state[serial_number].buttons[source_page][button_index]
+        self.state[serial_number].buttons[target_page][target_button] = source_data
+
+        # Reset source button to default
+        self.state[serial_number].buttons[source_page][button_index] = ButtonMultiState(
+            state=0, states={0: ButtonState()}
+        )
+        self._save_state()
+
+        # Update rendering for both pages
+        self._update_button_filters(serial_number, source_page, button_index)
+        self._update_button_filters(serial_number, target_page, target_button)
+        display_handler = self.display_handlers[serial_number]
+        display_handler.synchronize()
+        return True
 
     def set_button_text(self, deck_id: str, page: int, button: int, text: str) -> None:
         """Set the text associated with a button"""
@@ -796,11 +843,44 @@ class StreamDeckServer:
 
     # Plugin API methods
 
+    def _restore_single_plugin(self, serial_number: str, page: int, button: int, state_id: int, button_state: ButtonState) -> None:
+        """Restore a single plugin instance. Designed to run in a thread pool."""
+        assert self.plugin_manager is not None
+        try:
+            instance_id = self.plugin_manager.create_instance(
+                plugin_id=button_state.plugin_id,
+                deck_serial=serial_number,
+                page=page,
+                button=button,
+                config=button_state.plugin_config,
+                can_switch_page=button_state.plugin_can_switch_page,
+            )
+
+            if instance_id:
+                instance = self.plugin_manager.get_instance(instance_id)
+                if instance:
+                    instance.on_image_update = self._handle_plugin_image_update
+                    instance.on_page_switch_request = self._handle_plugin_page_switch
+                    instance.on_log_message = self._handle_plugin_log_message
+
+                success = self.plugin_manager.start_instance(instance_id)
+                if success:
+                    logger.info(f"Successfully restored plugin instance {instance_id}")
+                    current_page = self.get_page(serial_number)
+                    if current_page == page and instance:
+                        instance.send_button_visible()
+                else:
+                    logger.error(f"Failed to start restored plugin instance {instance_id}")
+            else:
+                logger.error(f"Failed to create plugin instance for {button_state.plugin_id}")
+        except Exception as e:
+            logger.error(f"Error restoring plugin {button_state.plugin_id}: {e}", exc_info=True)
+
     def _restore_plugins_for_deck(self, serial_number: str) -> None:
         """Restore all plugin instances for a given deck from saved state.
 
-        This is called when a deck is attached to restore any previously
-        configured plugins.
+        Plugins are started in parallel using a thread pool to avoid
+        blocking the UI while waiting for each plugin's socket connection.
 
         Args:
             serial_number: Stream Deck serial number
@@ -812,52 +892,25 @@ class StreamDeckServer:
 
         deck_state = self.state[serial_number]
 
-        # Iterate through all pages and buttons
+        # Collect all plugins to restore
+        plugins_to_restore = []
         for page, buttons in deck_state.buttons.items():
             for button, button_multi_state in buttons.items():
-                # Check each state in the multi-state
                 for state_id, button_state in button_multi_state.states.items():
-                    # Check if this button has a plugin configured
                     if button_state.plugin_id:
                         logger.info(
                             f"Restoring plugin {button_state.plugin_id} for "
                             f"deck {serial_number}, page {page}, button {button}, state {state_id}"
                         )
+                        plugins_to_restore.append((page, button, state_id, button_state))
 
-                        # Create and start the plugin instance
-                        try:
-                            instance_id = self.plugin_manager.create_instance(
-                                plugin_id=button_state.plugin_id,
-                                deck_serial=serial_number,
-                                page=page,
-                                button=button,
-                                config=button_state.plugin_config,
-                                can_switch_page=button_state.plugin_can_switch_page,
-                            )
+        if not plugins_to_restore:
+            return
 
-                            if instance_id:
-                                # Set up callbacks
-                                instance = self.plugin_manager.get_instance(instance_id)
-                                if instance:
-                                    instance.on_image_update = self._handle_plugin_image_update
-                                    instance.on_page_switch_request = self._handle_plugin_page_switch
-                                    instance.on_log_message = self._handle_plugin_log_message
-
-                                # Start the plugin
-                                success = self.plugin_manager.start_instance(instance_id)
-                                if success:
-                                    logger.info(f"Successfully restored plugin instance {instance_id}")
-
-                                    # If button is on current page, notify plugin it's visible
-                                    current_page = self.get_page(serial_number)
-                                    if current_page == page and instance:
-                                        instance.send_button_visible()
-                                else:
-                                    logger.error(f"Failed to start restored plugin instance {instance_id}")
-                            else:
-                                logger.error(f"Failed to create plugin instance for {button_state.plugin_id}")
-                        except Exception as e:
-                            logger.error(f"Error restoring plugin {button_state.plugin_id}: {e}", exc_info=True)
+        # Start all plugins in parallel
+        with ThreadPoolExecutor(max_workers=len(plugins_to_restore)) as executor:
+            for page, button, state_id, button_state in plugins_to_restore:
+                executor.submit(self._restore_single_plugin, serial_number, page, button, state_id, button_state)
 
     def get_button_plugin_id(self, serial_number: str, page: int, button: int) -> str:
         """Get the plugin ID for a button."""

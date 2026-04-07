@@ -176,6 +176,45 @@ class DraggableButton(QToolButton):
     def dragLeaveEvent(self, e):  # noqa: N802 - Part of QT signature.
         self.setStyleSheet(BUTTON_STYLE)
 
+    def contextMenuEvent(self, e):  # noqa: N802 - Part of QT signature.
+        deck_id = _deck()
+        if deck_id is None:
+            return
+
+        page_id = _page()
+        button_index = self.property("index")
+
+        # Don't show menu for empty buttons
+        if self.api.is_button_empty(deck_id, page_id, button_index):
+            return
+
+        menu = QMenu(self)
+        menu.setStyleSheet("QMenu { background-color: #2b2b2b; color: white; }"
+                           "QMenu::item:selected { background-color: #4a4a4a; }")
+        pages = self.api.get_pages(deck_id)
+
+        move_menu = menu.addMenu("Move to page")
+        move_menu.setStyleSheet(menu.styleSheet())
+        for target_page in pages:
+            if target_page == page_id:
+                continue
+            # Only show pages that have free slots
+            if self.api.find_first_free_button(deck_id, target_page) is None:
+                continue
+            action = move_menu.addAction(f"Page {target_page + 1}" if target_page == 0 else f"{target_page + 1}")
+            action.setData(target_page)
+
+        if move_menu.isEmpty():
+            return
+
+        selected_action = menu.exec(e.globalPos())
+        if selected_action is None:
+            return
+
+        target_page = selected_action.data()
+        self.api.move_button_to_page(deck_id, page_id, button_index, target_page)
+        redraw_buttons()
+
 
 def handle_keypress(ui, deck_id: str, key: int, state: bool) -> None:
     # Handle button press (state=True) and release (state=False) events
@@ -1886,6 +1925,7 @@ def start(_exit: bool = False) -> None:
                 return
             else:
                 app.exec()
+                api.shutdown()
                 api.stop()
                 cli.stop()
                 sys.exit()

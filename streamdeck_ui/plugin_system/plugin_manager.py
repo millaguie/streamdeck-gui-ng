@@ -5,6 +5,7 @@ import logging
 import os
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -97,7 +98,7 @@ class PluginInstance:
             env["STREAMDECK_PLUGIN_CONFIG"] = config_json
 
             self.process = subprocess.Popen(
-                ["python3", str(entry_point), self.socket_path, config_json],
+                [sys.executable, str(entry_point), self.socket_path, config_json],
                 env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -117,6 +118,11 @@ class PluginInstance:
                 logger.info(f"Plugin {self.instance_id} connected")
             except TimeoutError:
                 logger.error(f"Plugin {self.instance_id} failed to connect within timeout")
+                # Log plugin stderr for debugging
+                if self.process and self.process.poll() is not None:
+                    _, stderr = self.process.communicate(timeout=2)
+                    if stderr:
+                        logger.error(f"Plugin {self.instance_id} stderr: {stderr.decode()[:1000]}")
                 self.stop()
                 return False
 
