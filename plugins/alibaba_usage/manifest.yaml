@@ -1,0 +1,53 @@
+name: Alibaba Coding Plan Usage Monitor
+version: 1.0.0
+description: >
+  Shows Alibaba Cloud (Tongyi Lingma) Coding Plan consumption (5h, weekly, monthly windows)
+  with progress bars and reset times. Uses an undocumented console RPC endpoint
+  reverse-engineered by the CodexBar project (https://github.com/steipete/CodexBar/pull/453).
+  Official quota docs: https://www.alibabacloud.com/help/en/model-studio/coding-plan
+author: StreamDeck UI Community
+entry_point: alibaba_usage_plugin.py
+license: MIT
+
+lifecycle_mode: always_running
+can_switch_page: false
+
+max_retries: 5
+retry_delay: 30
+
+variables:
+  - name: api_key
+    type: password
+    description: "DashScope Coding Plan API key (sk-sp-xxx). Leave empty to auto-read from opencode auth.json."
+    required: false
+
+  - name: region
+    type: string
+    description: "Region: 'intl' for international or 'cn' for China mainland"
+    required: false
+    default: intl
+
+  - name: opencode_auth_path
+    type: file_path
+    description: "Path to opencode auth.json (default ~/.local/share/opencode/auth.json)"
+    required: false
+
+  - name: poll_interval
+    type: int
+    description: Polling interval in seconds
+    required: false
+    default: 300
+
+  - name: display_mode
+    type: string
+    description: "Display mode: 'compact' shows 5h/weekly on one screen, 'rotate' cycles between all windows"
+    required: false
+    default: compact
+
+  - name: rotate_interval
+    type: int
+    description: Seconds between view rotation (only used in rotate mode)
+    required: false
+    default: 5
+
+icon: alibaba_icon.png
