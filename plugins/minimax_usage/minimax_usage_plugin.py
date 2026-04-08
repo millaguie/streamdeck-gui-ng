@@ -32,6 +32,7 @@ class MiniMaxUsagePlugin(BasePlugin):
         self.poll_interval = max(int(config.get('poll_interval', 300)), 60)
         self.display_mode = config.get('display_mode', 'compact')
         self.rotate_interval = int(config.get('rotate_interval', 5))
+        self.show_models = [s.strip().lower() for s in config.get('show_models', '').split(',') if s.strip()]
 
         # State
         self.last_poll_time = 0
@@ -128,6 +129,16 @@ class MiniMaxUsagePlugin(BasePlugin):
         else:
             return f"{minutes}m"
 
+    def _format_count(self, n: int) -> str:
+        """Format large numbers compactly: 1500 -> 1.5k, 150000 -> 150k."""
+        if n >= 1_000_000:
+            v = n / 1_000_000
+            return f"{v:.1f}M" if v != int(v) else f"{int(v)}M"
+        elif n >= 1000:
+            v = n / 1000
+            return f"{v:.1f}k" if v != int(v) else f"{int(v)}k"
+        return str(n)
+
     def _short_model_name(self, model: str) -> str:
         """Shorten model name for display."""
         replacements = {
@@ -174,6 +185,40 @@ class MiniMaxUsagePlugin(BasePlugin):
             color = self._get_bar_color(pct)
             draw.rectangle([x + 1, y + 1, x + fill_w, y + h - 1], fill=color)
 
+    def _filtered_models(self) -> list[dict[str, Any]]:
+        """Return model_remains filtered by show_models config. If empty, return all."""
+        if not self.show_models:
+            return self.model_remains
+        return [
+            m for m in self.model_remains
+            if any(f in m.get('model_name', '').lower() for f in self.show_models)
+        ]
+
+    def _build_display_rows(self) -> list[dict[str, Any]]:
+        """Build display rows from filtered models, expanding interval + weekly.
+
+        Note: current_interval_usage_count is actually the REMAINING count, not used.
+        """
+        models = self._filtered_models()
+        rows = []
+        for m in models:
+            name = self._short_model_name(m.get('model_name', '?'))
+            total = m.get('current_interval_total_count', 0)
+            remaining = m.get('current_interval_usage_count', 0)
+            used = total - remaining
+            pct = (used / total * 100) if total > 0 else 0
+            reset = self._format_reset_time(m.get('remains_time', 0))
+            rows.append({'label': name, 'used': used, 'total': total, 'pct': pct, 'reset': reset})
+
+            weekly_total = m.get('current_weekly_total_count', 0)
+            if weekly_total > 0:
+                weekly_remaining = m.get('current_weekly_usage_count', 0)
+                weekly_used = weekly_total - weekly_remaining
+                weekly_pct = (weekly_used / weekly_total * 100) if weekly_total > 0 else 0
+                weekly_reset = self._format_reset_time(m.get('weekly_remains_time', 0))
+                rows.append({'label': f"{name}/w", 'used': weekly_used, 'total': weekly_total, 'pct': weekly_pct, 'reset': weekly_reset})
+        return rows
+
     def _update_display(self) -> None:
         try:
             if self.error_message and not self.model_remains:
@@ -207,45 +252,38 @@ class MiniMaxUsagePlugin(BasePlugin):
             self.log(LogLevel.ERROR, f"Display update failed: {e}")
 
     def _render_compact_view(self) -> None:
-        """Render compact view showing models with progress bars."""
+        """Render compact view showing filtered models with progress bars."""
+        rows = self._build_display_rows()
         img = Image.new('RGB', (72, 72), (20, 20, 20))
         draw = ImageDraw.Draw(img)
 
-        n = min(len(self.model_remains), 2)
+        if not rows:
+            font_label = self._load_font(11)
+            draw.text((36, 36), "MiniMax\nNo match", fill=(255, 255, 255), font=font_label, anchor="mm")
+            self.update_image_raw(img)
+            return
+
+        n = min(len(rows), 2)
         section_h = 72 // n
         font_label = self._load_font(11)
         font_small = self._load_font(9)
 
-        for i, model in enumerate(self.model_remains[:n]):
-            total = model.get('current_interval_total_count', 0)
-            remaining = model.get('current_interval_usage_count', 0)
-            used = total - remaining
-            pct = (used / total * 100) if total > 0 else 0
-            reset = self._format_reset_time(model.get('remains_time', 0))
-            name = self._short_model_name(model.get('model_name', '?'))
-
+        for i, row in enumerate(rows[:n]):
             y_base = i * section_h
-
-            draw.text((4, y_base + 2), f"{name} {pct:.0f}%", fill=(255, 255, 255), font=font_label)
-            self._draw_bar(draw, 4, y_base + 16, 64, 8, pct)
-            draw.text((4, y_base + 26), f"{used}/{total} {reset}", fill=(180, 180, 180), font=font_small)
+            draw.text((4, y_base + 2), f"{row['label']} {row['pct']:.0f}%", fill=(255, 255, 255), font=font_label)
+            self._draw_bar(draw, 4, y_base + 16, 64, 8, row['pct'])
+            draw.text((4, y_base + 26), f"{self._format_count(row['used'])}/{self._format_count(row['total'])} {row['reset']}", fill=(180, 180, 180), font=font_small)
 
         self.update_image_raw(img)
 
     def _render_rotate_view(self) -> None:
-        """Render rotating views cycling through models."""
-        if not self.model_remains:
+        """Render rotating views cycling through display rows."""
+        rows = self._build_display_rows()
+        if not rows:
             return
 
-        idx = self.current_view % len(self.model_remains)
-        model = self.model_remains[idx]
-
-        total = model.get('current_interval_total_count', 0)
-        remaining = model.get('current_interval_usage_count', 0)
-        used = total - remaining
-        pct = (used / total * 100) if total > 0 else 0
-        reset = self._format_reset_time(model.get('remains_time', 0))
-        name = self._short_model_name(model.get('model_name', '?'))
+        idx = self.current_view % len(rows)
+        row = rows[idx]
 
         img = Image.new('RGB', (72, 72), (20, 20, 20))
         draw = ImageDraw.Draw(img)
@@ -253,11 +291,11 @@ class MiniMaxUsagePlugin(BasePlugin):
         font_mid = self._load_font(11)
         font_small = self._load_font(9)
 
-        draw.text((36, 6), name, fill=(255, 255, 255), font=font_label, anchor="mt")
-        draw.text((36, 22), f"{used}/{total}", fill=(255, 255, 255), font=font_mid, anchor="mt")
-        self._draw_bar(draw, 4, 38, 64, 10, pct)
-        draw.text((36, 41), f"{pct:.0f}%", fill=(255, 255, 255), font=font_small, anchor="mm")
-        draw.text((36, 56), reset, fill=(180, 180, 180), font=font_small, anchor="mt")
+        draw.text((36, 6), row['label'], fill=(255, 255, 255), font=font_label, anchor="mt")
+        draw.text((36, 22), f"{self._format_count(row['used'])}/{self._format_count(row['total'])}", fill=(255, 255, 255), font=font_mid, anchor="mt")
+        self._draw_bar(draw, 4, 38, 64, 10, row['pct'])
+        draw.text((36, 41), f"{row['pct']:.0f}%", fill=(255, 255, 255), font=font_small, anchor="mm")
+        draw.text((36, 56), row['reset'], fill=(180, 180, 180), font=font_small, anchor="mt")
 
         self.update_image_raw(img)
 
@@ -289,6 +327,7 @@ class MiniMaxUsagePlugin(BasePlugin):
         self.poll_interval = max(int(config.get('poll_interval', 300)), 60)
         self.display_mode = config.get('display_mode', 'compact')
         self.rotate_interval = int(config.get('rotate_interval', 5))
+        self.show_models = [s.strip().lower() for s in config.get('show_models', '').split(',') if s.strip()]
         self.log(LogLevel.INFO, "Configuration updated")
         if self._fetch_usage():
             self.error_message = None
@@ -304,7 +343,7 @@ class MiniMaxUsagePlugin(BasePlugin):
             self.last_poll_time = current_time
             self._update_display()
 
-        if self.display_mode == 'rotate' and self.model_remains:
+        if self.display_mode == 'rotate' and self._build_display_rows():
             if current_time - self.last_rotate_time >= self.rotate_interval:
                 self.current_view += 1
                 self.last_rotate_time = current_time

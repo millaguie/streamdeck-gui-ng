@@ -33,9 +33,14 @@ variables:
     required: false
     default: 300
 
+  - name: show_models
+    type: string
+    description: "Comma-separated model name filter (e.g. 'M2.7,M2.5'). Partial match, case-insensitive. Empty = show all."
+    required: false
+
   - name: display_mode
     type: string
-    description: "Display mode: 'compact' shows all models, 'rotate' cycles between models"
+    description: "Display mode: 'compact' shows filtered models, 'rotate' cycles between them"
     required: false
     default: compact
 
