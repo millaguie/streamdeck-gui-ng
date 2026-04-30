@@ -33,6 +33,10 @@ class ZaiUsagePlugin(BasePlugin):
         self.display_mode = config.get('display_mode', 'compact')
         self.rotate_interval = int(config.get('rotate_interval', 5))
 
+        self.quota_sentinel_url = config.get('quota_sentinel_url', '').split('/v1')[0].rstrip('/')
+        self._sentinel_api_key = ''
+        self._sentinel_instance_id = ''
+
         # State
         self.last_poll_time = 0
         self.quota_data: list[dict[str, Any]] | None = None
@@ -60,8 +64,92 @@ class ZaiUsagePlugin(BasePlugin):
             self.log(LogLevel.ERROR, f"Failed to read opencode auth: {e}")
         return ""
 
+    def _sentinel_headers(self) -> dict[str, str]:
+        """Build headers for Quota Sentinel requests."""
+        headers: dict[str, str] = {}
+        if self._sentinel_api_key:
+            headers['X-API-Key'] = self._sentinel_api_key
+        return headers
+
+    def _register_with_sentinel(self) -> bool:
+        """Auto-register with Quota Sentinel and obtain API key."""
+        if self._sentinel_api_key:
+            return True
+        token = self._resolve_token()
+        if not token:
+            return False
+        try:
+            payload = {
+                'project_name': 'streamdeck-zai',
+                'framework': 'opencode',
+                'auth': {'opencode_auth': {'zai-coding-plan': {'key': token}}},
+            }
+            resp = requests.post(f"{self.quota_sentinel_url}/v1/instances", json=payload, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            self._sentinel_api_key = data.get('api_key', '')
+            self._sentinel_instance_id = data.get('instance_id', '')
+            self.log(LogLevel.INFO, f"Registered with Sentinel as {self._sentinel_instance_id}")
+            return bool(self._sentinel_api_key)
+        except requests.exceptions.RequestException as e:
+            self.log(LogLevel.ERROR, f"Sentinel registration failed: {e}")
+            return False
+
+    def _provider_exists_in_sentinel(self, provider: str) -> bool:
+        """Check if a provider is registered in Quota Sentinel."""
+        try:
+            response = requests.get(f"{self.quota_sentinel_url}/v1/providers", headers=self._sentinel_headers(), timeout=10)
+            if response.status_code == 401:
+                self.log(LogLevel.WARNING, "Sentinel auth expired, will re-register")
+                self._sentinel_api_key = ''
+                return False
+            response.raise_for_status()
+            providers = response.json()
+            if isinstance(providers, dict):
+                return provider in providers
+            return provider in [p.get('name', p) if isinstance(p, dict) else p for p in providers]
+        except requests.exceptions.RequestException:
+            return False
+
+    def _fetch_from_sentinel(self) -> bool:
+        """Fetch usage data from Quota Sentinel."""
+        try:
+            if not self._register_with_sentinel():
+                return False
+
+            if not self._provider_exists_in_sentinel('zai'):
+                self.log(LogLevel.INFO, "Provider 'zai' not registered in Sentinel")
+                return False
+
+            response = requests.get(f"{self.quota_sentinel_url}/v1/providers/zai", headers=self._sentinel_headers(), timeout=10)
+            if response.status_code == 404:
+                self.log(LogLevel.INFO, "Provider 'zai' not yet registered in Sentinel")
+                return False
+            response.raise_for_status()
+            data = response.json()
+            if data.get('error'):
+                self.error_message = "Sentinel\nerror"
+                return False
+            windows = data.get('windows', {})
+            self.quota_data = []
+            for wname, wdata in windows.items():
+                self.quota_data.append({
+                    'type': 'TOKENS_LIMIT',
+                    'percentage': wdata.get('utilization', 0),
+                    'nextResetTime': None,
+                    '_label': wname,
+                })
+            return True
+        except requests.exceptions.RequestException as e:
+            self.log(LogLevel.ERROR, f"Failed to fetch from Sentinel: {e}")
+            self.error_message = "Sentinel\nerror"
+            return False
+
     def _fetch_usage(self) -> bool:
-        """Fetch usage data from Z.ai API. Returns True on success."""
+        """Fetch usage data from Z.ai API or Quota Sentinel."""
+        if self.quota_sentinel_url:
+            return self._fetch_from_sentinel()
+
         token = self._resolve_token()
         if not token:
             self.error_message = "No\ntoken"
@@ -302,6 +390,9 @@ class ZaiUsagePlugin(BasePlugin):
         self.poll_interval = max(int(config.get('poll_interval', 300)), 60)
         self.display_mode = config.get('display_mode', 'compact')
         self.rotate_interval = int(config.get('rotate_interval', 5))
+        self.quota_sentinel_url = config.get('quota_sentinel_url', '').split('/v1')[0].rstrip('/')
+        self._sentinel_api_key = ''
+        self._sentinel_instance_id = ''
         self.log(LogLevel.INFO, "Configuration updated")
         if self._fetch_usage():
             self.error_message = None

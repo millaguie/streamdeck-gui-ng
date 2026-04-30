@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DeepSeek balance monitoring plugin for StreamDeck UI."""
+"""Cerebras usage monitoring plugin for StreamDeck UI."""
 
 import json
 import sys
@@ -16,12 +16,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from streamdeck_ui.plugin_system.base_plugin import BasePlugin
 from streamdeck_ui.plugin_system.protocol import LogLevel
 
-BALANCE_URL = "https://api.deepseek.com/user/balance"
+USAGE_URL = "https://api.cerebras.ai/v1/usage"
 DEFAULT_OPENCODE_AUTH = str(Path.home() / ".local" / "share" / "opencode" / "auth.json")
 
 
-class DeepSeekUsagePlugin(BasePlugin):
-    """Plugin for monitoring DeepSeek API balance."""
+class CerebrasUsagePlugin(BasePlugin):
+    """Plugin for monitoring Cerebras token quotas."""
 
     def __init__(self, socket_path: str, config: dict[str, Any]):
         super().__init__(socket_path, config)
@@ -36,21 +36,21 @@ class DeepSeekUsagePlugin(BasePlugin):
         self._sentinel_api_key = ''
         self._sentinel_instance_id = ''
 
-        # State
+        # State: {window_name: utilization_percent}
+        self.windows: dict[str, float] = {}
         self.last_poll_time = 0
-        self.balance_data: dict[str, Any] | None = None
         self.error_message: str | None = None
+        self.has_data = False
         self.current_view = 0
         self.last_rotate_time = 0
 
     def _resolve_key(self) -> str:
-        """Get API key from config or opencode auth.json."""
         if self.api_key:
             return self.api_key
         try:
             with open(self.opencode_auth_path) as f:
                 auth = json.load(f)
-            for key_name in ('deepseek-coding-plan', 'deepseek'):
+            for key_name in ('cerebras-coding-plan', 'cerebras'):
                 entry = auth.get(key_name, {})
                 if entry.get('key'):
                     self.log(LogLevel.INFO, f"Using API key from opencode auth ({key_name})")
@@ -62,14 +62,12 @@ class DeepSeekUsagePlugin(BasePlugin):
         return ""
 
     def _sentinel_headers(self) -> dict[str, str]:
-        """Build headers for Quota Sentinel requests."""
         headers: dict[str, str] = {}
         if self._sentinel_api_key:
             headers['X-API-Key'] = self._sentinel_api_key
         return headers
 
     def _register_with_sentinel(self) -> bool:
-        """Auto-register with Quota Sentinel and obtain API key."""
         if self._sentinel_api_key:
             return True
         key = self._resolve_key()
@@ -77,9 +75,9 @@ class DeepSeekUsagePlugin(BasePlugin):
             return False
         try:
             payload = {
-                'project_name': 'streamdeck-deepseek',
+                'project_name': 'streamdeck-cerebras',
                 'framework': 'opencode',
-                'auth': {'opencode_auth': {'deepseek': {'key': key}}},
+                'auth': {'opencode_auth': {'cerebras': {'key': key}}},
             }
             resp = requests.post(f"{self.quota_sentinel_url}/v1/instances", json=payload, timeout=10)
             resp.raise_for_status()
@@ -93,7 +91,6 @@ class DeepSeekUsagePlugin(BasePlugin):
             return False
 
     def _provider_exists_in_sentinel(self, provider: str) -> bool:
-        """Check if a provider is registered in Quota Sentinel."""
         try:
             response = requests.get(f"{self.quota_sentinel_url}/v1/providers", headers=self._sentinel_headers(), timeout=10)
             if response.status_code == 401:
@@ -109,18 +106,17 @@ class DeepSeekUsagePlugin(BasePlugin):
             return False
 
     def _fetch_from_sentinel(self) -> bool:
-        """Fetch usage data from Quota Sentinel."""
         try:
             if not self._register_with_sentinel():
                 return False
 
-            if not self._provider_exists_in_sentinel('deepseek'):
-                self.log(LogLevel.INFO, "Provider 'deepseek' not registered in Sentinel")
+            if not self._provider_exists_in_sentinel('cerebras'):
+                self.log(LogLevel.INFO, "Provider 'cerebras' not registered in Sentinel")
                 return False
 
-            response = requests.get(f"{self.quota_sentinel_url}/v1/providers/deepseek", headers=self._sentinel_headers(), timeout=10)
+            response = requests.get(f"{self.quota_sentinel_url}/v1/providers/cerebras", headers=self._sentinel_headers(), timeout=10)
             if response.status_code == 404:
-                self.log(LogLevel.INFO, "Provider 'deepseek' not yet registered in Sentinel")
+                self.log(LogLevel.INFO, "Provider 'cerebras' not yet registered in Sentinel")
                 return False
             response.raise_for_status()
             data = response.json()
@@ -128,16 +124,8 @@ class DeepSeekUsagePlugin(BasePlugin):
                 self.error_message = "Sentinel\nerror"
                 return False
             windows = data.get('windows', {})
-            balance_w = windows.get('balance', {})
-            meta = balance_w.get('metadata', {})
-            total_balance = meta.get('total_balance', 0)
-            is_available = meta.get('is_available', True)
-            currency = meta.get('currency', 'USD')
-            self.balance_data = {
-                'is_available': is_available,
-                'balance_infos': [{'currency': currency, 'total_balance': str(total_balance),
-                                   'granted_balance': '0', 'topped_up_balance': str(total_balance)}],
-            }
+            self.windows = {name: float(w.get('utilization', 0) or 0) for name, w in windows.items()}
+            self.has_data = True
             return True
         except requests.exceptions.RequestException as e:
             self.log(LogLevel.ERROR, f"Failed to fetch from Sentinel: {e}")
@@ -145,7 +133,6 @@ class DeepSeekUsagePlugin(BasePlugin):
             return False
 
     def _fetch_usage(self) -> bool:
-        """Fetch balance data from DeepSeek API or Quota Sentinel."""
         if self.quota_sentinel_url:
             return self._fetch_from_sentinel()
 
@@ -156,42 +143,49 @@ class DeepSeekUsagePlugin(BasePlugin):
 
         try:
             headers = {"Authorization": f"Bearer {key}"}
-            response = requests.get(BALANCE_URL, headers=headers, timeout=10)
+            response = requests.get(USAGE_URL, headers=headers, timeout=10)
 
             if response.status_code == 401:
-                self.log(LogLevel.ERROR, "DeepSeek auth failed (401)")
+                self.log(LogLevel.ERROR, "Cerebras auth failed (401)")
                 self.error_message = "Auth\nfailed"
                 return False
-
             if response.status_code == 429:
-                self.log(LogLevel.WARNING, "DeepSeek rate limited")
+                self.log(LogLevel.WARNING, "Cerebras rate limited")
                 self.error_message = "Rate\nlimited"
                 return False
 
             response.raise_for_status()
             data = response.json()
 
-            self.balance_data = data
+            self.windows = {}
+            for prefix, name in [('daily', 'daily'), ('weekly', 'weekly'),
+                                 ('monthly', 'monthly'), ('subscription', 'subscription')]:
+                used = data.get(f'{prefix}_tokens_used', 0)
+                limit = data.get(f'{prefix}_tokens_limit', 0)
+                if limit > 0:
+                    self.windows[name] = min(used / limit * 100, 100)
+
+            self.has_data = True
             return True
 
         except requests.exceptions.RequestException as e:
-            self.log(LogLevel.ERROR, f"Failed to fetch DeepSeek balance: {e}")
+            self.log(LogLevel.ERROR, f"Failed to fetch Cerebras usage: {e}")
             self.error_message = "API\nerror"
             return False
 
-    def _get_bar_color(self, balance: float, threshold_low: float = 1.0, threshold_mid: float = 5.0) -> tuple[int, int, int]:
-        """Get bar fill color based on balance amount."""
-        if balance <= 0:
+    def _get_bar_color(self, pct: float) -> tuple[int, int, int]:
+        if pct >= 90:
             return (183, 28, 28)
-        elif balance < threshold_low:
+        elif pct >= 75:
             return (230, 81, 0)
-        elif balance < threshold_mid:
+        elif pct >= 50:
             return (245, 127, 23)
+        elif pct >= 25:
+            return (27, 94, 32)
         else:
-            return (21, 101, 192)
+            return (217, 70, 49)  # Cerebras red/orange
 
     def _load_font(self, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-        """Load a font, falling back to default."""
         for path in [
             "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -204,25 +198,17 @@ class DeepSeekUsagePlugin(BasePlugin):
         return ImageFont.load_default()
 
     def _draw_bar(self, draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, pct: float) -> None:
-        """Draw a progress bar with border and fill."""
         draw.rectangle([x, y, x + w, y + h], fill=(30, 30, 30), outline=(80, 80, 80))
         fill_w = int(w * min(pct, 100) / 100)
         if fill_w > 0:
             color = self._get_bar_color(pct)
             draw.rectangle([x + 1, y + 1, x + fill_w, y + h - 1], fill=color)
 
-    def _parse_balances(self) -> list[dict[str, Any]]:
-        """Extract balance info entries."""
-        if not self.balance_data:
-            return []
-        return self.balance_data.get('balance_infos', [])
-
     def _update_display(self) -> None:
-        """Update the button display."""
         try:
-            if self.error_message and not self.balance_data:
+            if self.error_message and not self.has_data:
                 self.update_image_render(
-                    text=f"DeepSeek\n{self.error_message}",
+                    text=f"Cerebras\n{self.error_message}",
                     background_color="#B71C1C",
                     font_color="#FFFFFF",
                     font_size=10,
@@ -231,12 +217,23 @@ class DeepSeekUsagePlugin(BasePlugin):
                 )
                 return
 
-            if not self.balance_data:
+            if not self.has_data:
                 self.update_image_render(
-                    text="DeepSeek\n...",
-                    background_color="#37474F",
+                    text="Cerebras\n...",
+                    background_color="#D94631",
                     font_color="#FFFFFF",
                     font_size=11,
+                    text_vertical_align="middle",
+                    text_horizontal_align="center",
+                )
+                return
+
+            if not self.windows:
+                self.update_image_render(
+                    text="Cerebras\nNo data",
+                    background_color="#37474F",
+                    font_color="#FFFFFF",
+                    font_size=10,
                     text_vertical_align="middle",
                     text_horizontal_align="center",
                 )
@@ -250,112 +247,71 @@ class DeepSeekUsagePlugin(BasePlugin):
         except Exception as e:
             self.log(LogLevel.ERROR, f"Display update failed: {e}")
 
-    def _render_compact_view(self) -> None:
-        """Render compact view showing balance summary."""
-        balances = self._parse_balances()
-        is_available = self.balance_data.get('is_available', False) if self.balance_data else False
+    def _ordered_windows(self) -> list[tuple[str, float]]:
+        priority = ['daily', 'weekly', 'monthly', 'subscription']
+        ordered = [(n, self.windows[n]) for n in priority if n in self.windows]
+        ordered += [(n, p) for n, p in self.windows.items() if n not in priority]
+        return ordered
 
+    def _render_compact_view(self) -> None:
         img = Image.new('RGB', (72, 72), (20, 20, 20))
         draw = ImageDraw.Draw(img)
         font_title = self._load_font(10)
-        font_value = self._load_font(12)
-        font_small = self._load_font(9)
-
-        if not balances:
-            draw.text((36, 36), "DeepSeek\nNo data", fill=(255, 255, 255), font=font_title, anchor="mm")
-            self.update_image_raw(img)
-            return
-
-        bal = balances[0]
-        currency = bal.get('currency', '?')
-        total = float(bal.get('total_balance', '0'))
-        granted = float(bal.get('granted_balance', '0'))
-        topped_up = float(bal.get('topped_up_balance', '0'))
+        font_label = self._load_font(8)
 
         # Status indicator
-        status_color = (76, 175, 80) if is_available else (183, 28, 28)
+        max_pct = max(self.windows.values()) if self.windows else 0
+        status_color = self._get_bar_color(max_pct)
         draw.ellipse([2, 2, 8, 8], fill=status_color)
 
-        # Title
-        draw.text((12, 2), "DeepSeek", fill=(255, 255, 255), font=font_title)
+        draw.text((12, 2), "Cerebras", fill=(255, 255, 255), font=font_title)
 
-        # Total balance
-        total_str = f"{currency} {total:.2f}"
-        balance_color = self._get_bar_color(total)
-        draw.text((36, 22), total_str, fill=balance_color, font=font_value, anchor="mt")
-
-        # Breakdown
-        draw.text((4, 38), f"Free: {granted:.2f}", fill=(180, 180, 180), font=font_small)
-        draw.text((4, 50), f"Paid: {topped_up:.2f}", fill=(180, 180, 180), font=font_small)
-
-        # Simple balance bar (percentage of some reference, e.g. 100 units)
-        ref = max(total, 10)
-        pct = min(total / ref * 100, 100)
-        bar_color = self._get_bar_color(total)
-        draw.rectangle([4, 63, 68, 69], fill=(30, 30, 30), outline=(80, 80, 80))
-        fill_w = int(64 * min(pct, 100) / 100)
-        if fill_w > 0:
-            draw.rectangle([5, 64, 4 + fill_w, 68], fill=bar_color)
+        ordered = self._ordered_windows()
+        y = 16
+        for name, pct in ordered[:2]:
+            label = name[:5].upper()
+            draw.text((4, y), label, fill=(180, 180, 180), font=font_label)
+            draw.text((68, y), f"{pct:.0f}%", fill=(255, 255, 255), font=font_label, anchor="rt")
+            self._draw_bar(draw, 4, y + 11, 64, 6, pct)
+            y += 22
 
         self.update_image_raw(img)
 
     def _render_rotate_view(self) -> None:
-        """Render rotating views cycling through balance details."""
-        balances = self._parse_balances()
-        is_available = self.balance_data.get('is_available', False) if self.balance_data else False
-
-        if not balances:
-            self.update_image_render(
-                text="DeepSeek\nNo data",
-                background_color="#37474F",
-                font_color="#FFFFFF",
-                font_size=11,
-                text_vertical_align="middle",
-                text_horizontal_align="center",
-            )
+        ordered = self._ordered_windows()
+        if not ordered:
             return
 
-        bal = balances[0]
-        currency = bal.get('currency', '?')
-        total = float(bal.get('total_balance', '0'))
-        granted = float(bal.get('granted_balance', '0'))
-        topped_up = float(bal.get('topped_up_balance', '0'))
-
-        views = [
-            ("Total", f"{currency} {total:.2f}"),
-            ("Free", f"{currency} {granted:.2f}"),
-            ("Paid", f"{currency} {topped_up:.2f}"),
-        ]
-
-        idx = self.current_view % len(views)
-        label, value = views[idx]
+        idx = self.current_view % len(ordered)
+        name, pct = ordered[idx]
 
         img = Image.new('RGB', (72, 72), (20, 20, 20))
         draw = ImageDraw.Draw(img)
         font_title = self._load_font(10)
-        font_label = self._load_font(12)
-        font_value = self._load_font(14)
+        font_label = self._load_font(11)
+        font_value = self._load_font(18)
 
-        # Status indicator
-        status_color = (76, 175, 80) if is_available else (183, 28, 28)
+        max_pct = max(self.windows.values()) if self.windows else 0
+        status_color = self._get_bar_color(max_pct)
         draw.ellipse([2, 2, 8, 8], fill=status_color)
 
-        draw.text((12, 2), "DeepSeek", fill=(255, 255, 255), font=font_title)
-        draw.text((36, 28), label, fill=(180, 180, 180), font=font_label, anchor="mt")
+        draw.text((12, 2), "Cerebras", fill=(255, 255, 255), font=font_title)
+        draw.text((36, 18), name.capitalize(), fill=(180, 180, 180), font=font_label, anchor="mt")
 
-        balance_color = self._get_bar_color(total)
-        draw.text((36, 46), value, fill=balance_color, font=font_value, anchor="mt")
+        color = self._get_bar_color(pct)
+        draw.text((36, 34), f"{pct:.0f}%", fill=color, font=font_value, anchor="mt")
+
+        self._draw_bar(draw, 4, 60, 64, 8, pct)
 
         self.update_image_raw(img)
 
     def on_start(self) -> None:
-        self.log(LogLevel.INFO, "DeepSeek Usage plugin started")
+        self.log(LogLevel.INFO, "Cerebras Usage plugin started")
         self.log(LogLevel.INFO, f"Poll interval: {self.poll_interval}s, Display: {self.display_mode}")
         self._update_display()
 
     def on_button_pressed(self) -> None:
-        """Force refresh on button press."""
-        self.log(LogLevel.INFO, "Button pressed, forcing balance refresh")
+        self.log(LogLevel.INFO, "Button pressed, forcing usage refresh")
         if self._fetch_usage():
             self.error_message = None
         self.last_poll_time = time.time()
@@ -394,7 +350,7 @@ class DeepSeekUsagePlugin(BasePlugin):
             self.last_poll_time = current_time
             self._update_display()
 
-        if self.display_mode == 'rotate' and self.balance_data:
+        if self.display_mode == 'rotate' and self.has_data and self.windows:
             if current_time - self.last_rotate_time >= self.rotate_interval:
                 self.current_view += 1
                 self.last_rotate_time = current_time
@@ -403,7 +359,7 @@ class DeepSeekUsagePlugin(BasePlugin):
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: deepseek_usage_plugin.py <socket_path> <config_json>")
+        print("Usage: cerebras_usage_plugin.py <socket_path> <config_json>")
         sys.exit(1)
 
     socket_path = sys.argv[1]
@@ -413,7 +369,7 @@ def main():
         print(f"Invalid config JSON: {e}")
         sys.exit(1)
 
-    plugin = DeepSeekUsagePlugin(socket_path, config)
+    plugin = CerebrasUsagePlugin(socket_path, config)
     plugin.run()
 
 

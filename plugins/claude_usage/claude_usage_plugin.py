@@ -34,6 +34,10 @@ class ClaudeUsagePlugin(BasePlugin):
         self.display_mode = config.get('display_mode', 'compact')
         self.rotate_interval = int(config.get('rotate_interval', 5))
 
+        self.quota_sentinel_url = config.get('quota_sentinel_url', '').split('/v1')[0].rstrip('/')
+        self._sentinel_api_key = ''
+        self._sentinel_instance_id = ''
+
         # State
         self.last_poll_time = 0
         self.usage_data: dict[str, Any] | None = None
@@ -104,8 +108,109 @@ class ClaudeUsagePlugin(BasePlugin):
             self.log(LogLevel.ERROR, f"Token refresh failed: {e}")
             return None
 
+    def _sentinel_headers(self) -> dict[str, str]:
+        """Build headers for Quota Sentinel requests."""
+        headers: dict[str, str] = {}
+        if self._sentinel_api_key:
+            headers['X-API-Key'] = self._sentinel_api_key
+        return headers
+
+    def _register_with_sentinel(self) -> bool:
+        """Auto-register with Quota Sentinel and obtain API key."""
+        if self._sentinel_api_key:
+            return True
+        oauth = self._load_credentials()
+        if not oauth:
+            return False
+        try:
+            payload: dict[str, Any] = {
+                'project_name': 'streamdeck-claude',
+                'framework': 'claude',
+                'auth': {
+                    'claude_credentials': {
+                        'accessToken': oauth.get('accessToken', ''),
+                        'refreshToken': oauth.get('refreshToken', ''),
+                        'expiresAt': oauth.get('expiresAt', 0),
+                    }
+                },
+            }
+            resp = requests.post(f"{self.quota_sentinel_url}/v1/instances", json=payload, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            self._sentinel_api_key = data.get('api_key', '')
+            self._sentinel_instance_id = data.get('instance_id', '')
+            self.log(LogLevel.INFO, f"Registered with Sentinel as {self._sentinel_instance_id}")
+            return bool(self._sentinel_api_key)
+        except requests.exceptions.RequestException as e:
+            self.log(LogLevel.ERROR, f"Sentinel registration failed: {e}")
+            return False
+
+    def _provider_exists_in_sentinel(self, provider: str) -> bool:
+        """Check if a provider is registered in Quota Sentinel."""
+        try:
+            response = requests.get(f"{self.quota_sentinel_url}/v1/providers", headers=self._sentinel_headers(), timeout=10)
+            if response.status_code == 401:
+                self.log(LogLevel.WARNING, "Sentinel auth expired, will re-register")
+                self._sentinel_api_key = ''
+                return False
+            response.raise_for_status()
+            providers = response.json()
+            if isinstance(providers, dict):
+                return provider in providers
+            return provider in [p.get('name', p) if isinstance(p, dict) else p for p in providers]
+        except requests.exceptions.RequestException:
+            return False
+
+    def _fetch_from_sentinel(self) -> dict[str, Any] | None:
+        """Fetch usage data from Quota Sentinel (http://localhost:7878)."""
+        try:
+            if not self._register_with_sentinel():
+                return None
+
+            if not self._provider_exists_in_sentinel('claude'):
+                self.log(LogLevel.INFO, "Provider 'claude' not registered in Sentinel")
+                return None
+
+            response = requests.get(f"{self.quota_sentinel_url}/v1/providers/claude", headers=self._sentinel_headers(), timeout=10)
+            if response.status_code == 404:
+                self.log(LogLevel.INFO, "Provider 'claude' not yet registered in Sentinel")
+                return None
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('error'):
+                self.log(LogLevel.ERROR, f"Sentinel error: {data['error']}")
+                self.error_message = "Sentinel\nerror"
+                return None
+
+            # Convert sentinel format to the same format as the direct API
+            windows = data.get('windows', {})
+            result: dict[str, Any] = {}
+            sentinel_to_api = {
+                'five_hour': 'five_hour',
+                'seven_day': 'seven_day',
+                'seven_day_sonnet': 'seven_day_sonnet',
+                'seven_day_opus': 'seven_day_opus',
+            }
+            for sentinel_key, api_key in sentinel_to_api.items():
+                if sentinel_key in windows:
+                    w = windows[sentinel_key]
+                    result[api_key] = {
+                        'utilization': w.get('utilization'),
+                        'resets_at': w.get('resets_at'),
+                    }
+            return result if result else None
+
+        except requests.exceptions.RequestException as e:
+            self.log(LogLevel.ERROR, f"Failed to fetch from Sentinel: {e}")
+            self.error_message = "Sentinel\nerror"
+            return None
+
     def _fetch_usage(self) -> dict[str, Any] | None:
-        """Fetch usage data from Claude API."""
+        """Fetch usage data from Claude API or Quota Sentinel."""
+        if self.quota_sentinel_url:
+            return self._fetch_from_sentinel()
+
         oauth = self._load_credentials()
         if not oauth:
             self.error_message = "No creds"
@@ -335,6 +440,9 @@ class ClaudeUsagePlugin(BasePlugin):
         self.credentials_path = config.get('credentials_path', '') or DEFAULT_CREDENTIALS_PATH
         self.display_mode = config.get('display_mode', 'compact')
         self.rotate_interval = int(config.get('rotate_interval', 5))
+        self.quota_sentinel_url = config.get('quota_sentinel_url', '').split('/v1')[0].rstrip('/')
+        self._sentinel_api_key = ''
+        self._sentinel_instance_id = ''
         self.log(LogLevel.INFO, "Configuration updated")
         # Force refresh
         self.usage_data = self._fetch_usage()

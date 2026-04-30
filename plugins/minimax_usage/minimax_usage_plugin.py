@@ -33,6 +33,9 @@ class MiniMaxUsagePlugin(BasePlugin):
         self.display_mode = config.get('display_mode', 'compact')
         self.rotate_interval = int(config.get('rotate_interval', 5))
         self.show_models = [s.strip().lower() for s in config.get('show_models', '').split(',') if s.strip()]
+        self.quota_sentinel_url = config.get('quota_sentinel_url', '').split('/v1')[0].rstrip('/')
+        self._sentinel_api_key = ''
+        self._sentinel_instance_id = ''
 
         # State
         self.last_poll_time = 0
@@ -59,8 +62,107 @@ class MiniMaxUsagePlugin(BasePlugin):
             self.log(LogLevel.ERROR, f"Failed to read opencode auth: {e}")
         return ""
 
+    def _sentinel_headers(self) -> dict[str, str]:
+        """Build headers for Quota Sentinel requests."""
+        headers: dict[str, str] = {}
+        if self._sentinel_api_key:
+            headers['X-API-Key'] = self._sentinel_api_key
+        return headers
+
+    def _register_with_sentinel(self) -> bool:
+        """Auto-register with Quota Sentinel and obtain API key."""
+        if self._sentinel_api_key:
+            return True
+        key = self._resolve_key()
+        if not key:
+            return False
+        try:
+            payload: dict[str, Any] = {
+                'project_name': 'streamdeck-minimax',
+                'framework': 'opencode',
+                'auth': {'opencode_auth': {'minimax': {'key': key}}},
+                'provider_config': {'minimax': {'group_id': self.group_id}},
+            }
+            resp = requests.post(f"{self.quota_sentinel_url}/v1/instances", json=payload, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            self._sentinel_api_key = data.get('api_key', '')
+            self._sentinel_instance_id = data.get('instance_id', '')
+            self.log(LogLevel.INFO, f"Registered with Sentinel as {self._sentinel_instance_id}")
+            return bool(self._sentinel_api_key)
+        except requests.exceptions.RequestException as e:
+            self.log(LogLevel.ERROR, f"Sentinel registration failed: {e}")
+            return False
+
+    def _provider_exists_in_sentinel(self, provider: str) -> bool:
+        """Check if a provider is registered in Quota Sentinel."""
+        try:
+            response = requests.get(f"{self.quota_sentinel_url}/v1/providers", headers=self._sentinel_headers(), timeout=10)
+            if response.status_code == 401:
+                self.log(LogLevel.WARNING, "Sentinel auth expired, will re-register")
+                self._sentinel_api_key = ''
+                return False
+            response.raise_for_status()
+            providers = response.json()
+            if isinstance(providers, dict):
+                return provider in providers
+            return provider in [p.get('name', p) if isinstance(p, dict) else p for p in providers]
+        except requests.exceptions.RequestException:
+            return False
+
+    def _fetch_from_sentinel(self) -> bool:
+        """Fetch usage data from Quota Sentinel."""
+        try:
+            if not self._register_with_sentinel():
+                return False
+
+            if not self._provider_exists_in_sentinel('minimax'):
+                self.log(LogLevel.INFO, "Provider 'minimax' not registered in Sentinel")
+                return False
+
+            response = requests.get(f"{self.quota_sentinel_url}/v1/providers/minimax", headers=self._sentinel_headers(), timeout=10)
+            if response.status_code == 404:
+                self.log(LogLevel.INFO, "Provider 'minimax' not yet registered in Sentinel")
+                return False
+            response.raise_for_status()
+            data = response.json()
+            if data.get('error'):
+                self.error_message = "Sentinel\nerror"
+                return False
+            windows = data.get('windows', {})
+            self.model_remains = []
+            for wname, wdata in windows.items():
+                pct = wdata.get('utilization', 0) or 0
+                reset_iso = wdata.get('resets_at')
+                remains_ms = 0
+                if reset_iso:
+                    try:
+                        from datetime import datetime, timezone
+                        reset_dt = datetime.fromisoformat(reset_iso)
+                        remains_ms = max(0, int((reset_dt - datetime.now(timezone.utc)).total_seconds() * 1000))
+                    except Exception:
+                        pass
+                # Window names from sentinel: "MM-01_interval", "MM-01_weekly"
+                # Convert back to model_name for display
+                model_name = wname.replace('_interval', '').replace('_weekly', '')
+                suffix = ' (wk)' if '_weekly' in wname else ''
+                self.model_remains.append({
+                    'model_name': f"{model_name}{suffix}",
+                    'current_interval_total_count': 100,
+                    'current_interval_usage_count': int(100 - pct),
+                    'remains_time': remains_ms,
+                })
+            return True
+        except requests.exceptions.RequestException as e:
+            self.log(LogLevel.ERROR, f"Failed to fetch from Sentinel: {e}")
+            self.error_message = "Sentinel\nerror"
+            return False
+
     def _fetch_usage(self) -> bool:
-        """Fetch coding plan remains from MiniMax API."""
+        """Fetch coding plan remains from MiniMax API or Quota Sentinel."""
+        if self.quota_sentinel_url:
+            return self._fetch_from_sentinel()
+
         key = self._resolve_key()
         if not key:
             self.error_message = "No\nkey"
@@ -328,6 +430,9 @@ class MiniMaxUsagePlugin(BasePlugin):
         self.display_mode = config.get('display_mode', 'compact')
         self.rotate_interval = int(config.get('rotate_interval', 5))
         self.show_models = [s.strip().lower() for s in config.get('show_models', '').split(',') if s.strip()]
+        self.quota_sentinel_url = config.get('quota_sentinel_url', '').split('/v1')[0].rstrip('/')
+        self._sentinel_api_key = ''
+        self._sentinel_instance_id = ''
         self.log(LogLevel.INFO, "Configuration updated")
         if self._fetch_usage():
             self.error_message = None

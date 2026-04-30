@@ -998,6 +998,11 @@ def _on_plugin_configure(tab, deck_id, page_id, button_id, button_state_id):
     dialog.setWindowTitle(f"Configure {manifest.name}")
     dialog.setMinimumWidth(780)  # 30% wider than 600
     dialog.setMinimumHeight(400)
+    # Adapt dialog width to screen size (up to 80% of screen width)
+    screen = dialog.screen()
+    if screen:
+        available_width = screen.availableGeometry().width()
+        dialog.resize(min(int(available_width * 0.6), 1200), 500)
 
     layout = QVBoxLayout(dialog)
 

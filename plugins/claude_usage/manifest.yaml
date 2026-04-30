@@ -35,4 +35,9 @@ variables:
     required: false
     default: 5
 
+  - name: quota_sentinel_url
+    type: url
+    description: "Optional Quota Sentinel URL (e.g. http://localhost:7878). If set, fetches usage from Quota Sentinel instead of calling the API directly."
+    required: false
+
 icon: claude_icon.png
