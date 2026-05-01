@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Synthetic.new subscription quota monitor for StreamDeck UI."""
+"""Synthetic.new subscription quota monitor for StreamDeck UI.
+
+Synthetic exposes three concurrent budgets that all bind real usage:
+
+- ``subscription``    daily request count   (renews ~24h)
+- ``rolling_5h``      rolling 5-hour requests (regenerates 5%/12 min)
+- ``weekly_credits``  weekly $ credits remaining
+
+The plugin tracks all three.  The headline display always shows the
+*tightest* (highest-utilisation) window so the badge reflects the
+actual binding constraint — heavy bursts hit the 5h window long before
+the daily counter does.
+"""
 
 from __future__ import annotations
 
@@ -22,9 +34,19 @@ from streamdeck_ui.plugin_system.protocol import LogLevel
 QUOTAS_URL = "https://api.synthetic.new/v2/quotas"
 DEFAULT_OPENCODE_AUTH = str(Path.home() / ".local" / "share" / "opencode" / "auth.json")
 
+# Order matters for "worst window" tie-breaks: when two windows are at
+# the same utilisation the rolling 5h is the more actionable one (the
+# user can wait 12 min for a regen tick), so it comes first.
+_WINDOW_ORDER = ("rolling_5h", "subscription", "weekly_credits")
+_WINDOW_LABELS = {
+    "rolling_5h": "5h",
+    "subscription": "Day",
+    "weekly_credits": "Wk$",
+}
+
 
 class SyntheticUsagePlugin(BasePlugin):
-    """Plugin for monitoring Synthetic.new subscription quota."""
+    """Plugin for monitoring Synthetic.new request + credit quotas."""
 
     def __init__(self, socket_path: str, config: dict[str, Any]):
         super().__init__(socket_path, config)
@@ -43,9 +65,11 @@ class SyntheticUsagePlugin(BasePlugin):
         self._sentinel_api_key = ""
         self._sentinel_instance_id = ""
 
-        # State
+        # State.  ``windows`` is the per-window dict described in
+        # ``_compute_windows_from_quota``; ``headline`` is the worst one.
         self.last_poll_time = 0.0
-        self.usage_data: dict[str, Any] | None = None
+        self.windows: dict[str, dict[str, Any]] = {}
+        self.headline: dict[str, Any] | None = None
         self.error_message: str | None = None
         self.current_view = 0
         self.last_rotate_time = 0.0
@@ -71,6 +95,103 @@ class SyntheticUsagePlugin(BasePlugin):
         except (json.JSONDecodeError, KeyError) as e:
             self.log(LogLevel.ERROR, f"Failed to read opencode auth: {e}")
         return ""
+
+    # ----------------------------------------------------------- window math
+
+    @staticmethod
+    def _compute_windows_from_quota(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        """Build ``{window_id: {utilization, used, limit, remaining, renews_at, unit}}``
+        from the raw ``/v2/quotas`` payload.
+        """
+        out: dict[str, dict[str, Any]] = {}
+
+        sub = data.get("subscription") or {}
+        sub_limit = float(sub.get("limit") or 0)
+        sub_requests = float(sub.get("requests") or 0)
+        if sub_limit > 0:
+            out["subscription"] = {
+                "utilization": min(100.0, (sub_requests / sub_limit) * 100.0),
+                "used": int(sub_requests),
+                "limit": int(sub_limit),
+                "remaining": max(0, int(sub_limit - sub_requests)),
+                "renews_at": sub.get("renewsAt") or sub.get("renews_at"),
+                "unit": "req",
+            }
+
+        rh = data.get("rollingFiveHourLimit") or {}
+        rh_remaining = float(rh.get("remaining") or 0)
+        rh_max = float(rh.get("max") or 0)
+        if rh_max > 0:
+            used = max(0.0, rh_max - rh_remaining)
+            out["rolling_5h"] = {
+                "utilization": min(100.0, (used / rh_max) * 100.0),
+                "used": int(used),
+                "limit": int(rh_max),
+                "remaining": max(0, int(rh_remaining)),
+                "renews_at": rh.get("nextTickAt"),
+                "unit": "req",
+            }
+
+        wk = data.get("weeklyTokenLimit") or {}
+        wk_pct = wk.get("percentRemaining")
+        if isinstance(wk_pct, (int, float)):
+            wk_pct_f = max(0.0, min(100.0, float(wk_pct)))
+            out["weekly_credits"] = {
+                "utilization": 100.0 - wk_pct_f,
+                "used": str(wk.get("maxCredits") or "").lstrip("$"),
+                "limit": str(wk.get("maxCredits") or "").lstrip("$"),
+                "remaining": str(wk.get("remainingCredits") or "").lstrip("$"),
+                "renews_at": wk.get("nextRegenAt"),
+                "unit": "$",
+            }
+        return out
+
+    @staticmethod
+    def _windows_from_sentinel(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        """Reverse ``_compute_windows_from_quota`` — but read sentinel's
+        ``provider_detail`` shape instead of the raw API.
+
+        Keeps backwards compat: if sentinel only exposes the legacy
+        ``subscription`` window (pre-fix), we still surface it.
+        """
+        out: dict[str, dict[str, Any]] = {}
+        windows = payload.get("windows", {}) or {}
+        for wid, w in windows.items():
+            if not isinstance(w, dict):
+                continue
+            meta = w.get("metadata", {}) or {}
+            unit = "$" if "max_credits" in meta else "req"
+            entry: dict[str, Any] = {
+                "utilization": float(w.get("utilization") or 0.0),
+                "renews_at": w.get("resets_at"),
+                "unit": unit,
+            }
+            if unit == "$":
+                entry["used"] = meta.get("max_credits") or ""
+                entry["limit"] = meta.get("max_credits") or ""
+                entry["remaining"] = meta.get("remaining_credits") or ""
+            else:
+                entry["used"] = int(meta.get("used_requests") or 0)
+                entry["limit"] = int(meta.get("limit_requests") or 0)
+                entry["remaining"] = int(meta.get("remaining_requests") or 0)
+            out[wid] = entry
+        return out
+
+    @staticmethod
+    def _pick_headline(
+        windows: dict[str, dict[str, Any]],
+    ) -> tuple[str, dict[str, Any]] | None:
+        """Choose the window with the highest utilisation as the headline."""
+        if not windows:
+            return None
+        ranked = sorted(
+            windows.items(),
+            key=lambda kv: (
+                -float(kv[1].get("utilization") or 0.0),
+                _WINDOW_ORDER.index(kv[0]) if kv[0] in _WINDOW_ORDER else 99,
+            ),
+        )
+        return ranked[0]
 
     # -------------------------------------------------------------- sentinel
 
@@ -116,9 +237,7 @@ class SyntheticUsagePlugin(BasePlugin):
                 timeout=10,
             )
             if response.status_code == 401:
-                self.log(
-                    LogLevel.WARNING, "Sentinel auth expired, will re-register"
-                )
+                self.log(LogLevel.WARNING, "Sentinel auth expired, will re-register")
                 self._sentinel_api_key = ""
                 return False
             response.raise_for_status()
@@ -137,8 +256,7 @@ class SyntheticUsagePlugin(BasePlugin):
                 return False
             if not self._provider_exists_in_sentinel("synthetic"):
                 self.log(
-                    LogLevel.INFO,
-                    "Provider 'synthetic' not registered in Sentinel",
+                    LogLevel.INFO, "Provider 'synthetic' not registered in Sentinel"
                 )
                 return False
             response = requests.get(
@@ -153,16 +271,15 @@ class SyntheticUsagePlugin(BasePlugin):
             if data.get("error"):
                 self.error_message = "Sentinel\nerror"
                 return False
-            windows = data.get("windows", {})
-            sub_w = windows.get("subscription", {})
-            meta = sub_w.get("metadata", {})
-            self.usage_data = {
-                "limit": meta.get("limit_requests", 0),
-                "used": meta.get("used_requests", 0),
-                "remaining": meta.get("remaining_requests", 0),
-                "renews_at": sub_w.get("resets_at"),
-                "utilization": sub_w.get("utilization", 0.0),
-            }
+            windows = self._windows_from_sentinel(data)
+            if not windows:
+                self.error_message = "no\nwindows"
+                return False
+            self.windows = windows
+            head = self._pick_headline(windows)
+            self.headline = (
+                {"window": head[0], **head[1]} if head is not None else None
+            )
             return True
         except requests.exceptions.RequestException as e:
             self.log(LogLevel.ERROR, f"Failed to fetch from Sentinel: {e}")
@@ -188,16 +305,15 @@ class SyntheticUsagePlugin(BasePlugin):
                 return False
             response.raise_for_status()
             data = response.json()
-            sub = data.get("subscription") or {}
-            limit = float(sub.get("limit") or 0)
-            used = float(sub.get("requests") or 0)
-            self.usage_data = {
-                "limit": int(limit),
-                "used": int(used),
-                "remaining": max(0, int(limit - used)),
-                "renews_at": sub.get("renewsAt"),
-                "utilization": (used / limit * 100.0) if limit > 0 else 0.0,
-            }
+            windows = self._compute_windows_from_quota(data)
+            if not windows:
+                self.error_message = "no\nwindows"
+                return False
+            self.windows = windows
+            head = self._pick_headline(windows)
+            self.headline = (
+                {"window": head[0], **head[1]} if head is not None else None
+            )
             return True
         except requests.exceptions.RequestException as e:
             self.log(LogLevel.ERROR, f"Failed to fetch Synthetic quota: {e}")
@@ -254,9 +370,18 @@ class SyntheticUsagePlugin(BasePlugin):
             return f"{secs // 3600}h"
         return f"{secs // 86400}d"
 
+    @staticmethod
+    def _format_used(window: dict[str, Any]) -> str:
+        unit = window.get("unit", "req")
+        if unit == "$":
+            rem = window.get("remaining") or "0"
+            lim = window.get("limit") or "0"
+            return f"${rem}/${lim}"
+        return f"{window.get('used', 0)}/{window.get('limit', 0)}"
+
     def _update_display(self) -> None:
         try:
-            if self.error_message and not self.usage_data:
+            if self.error_message and not self.headline:
                 self.update_image_render(
                     text=f"Synthetic\n{self.error_message}",
                     background_color="#B71C1C",
@@ -266,7 +391,7 @@ class SyntheticUsagePlugin(BasePlugin):
                     text_horizontal_align="center",
                 )
                 return
-            if not self.usage_data:
+            if not self.headline:
                 self.update_image_render(
                     text="Synthetic\n…",
                     background_color="#37474F",
@@ -284,11 +409,11 @@ class SyntheticUsagePlugin(BasePlugin):
             self.log(LogLevel.ERROR, f"Display update failed: {e}")
 
     def _render_compact(self) -> None:
-        d = self.usage_data or {}
-        limit = int(d.get("limit") or 0)
-        used = int(d.get("used") or 0)
-        pct = float(d.get("utilization") or 0.0)
-        renew_label = self._format_renewal(d.get("renews_at"))
+        h = self.headline or {}
+        wid = h.get("window", "?")
+        pct = float(h.get("utilization") or 0.0)
+        renew_label = self._format_renewal(h.get("renews_at"))
+        wlabel = _WINDOW_LABELS.get(wid, wid[:3])
 
         img = Image.new("RGB", (72, 72), (20, 20, 20))
         draw = ImageDraw.Draw(img)
@@ -296,17 +421,14 @@ class SyntheticUsagePlugin(BasePlugin):
         font_value = self._load_font(13)
         font_small = self._load_font(9)
 
-        # Status dot — green if <80%, orange if <95%, red otherwise
         dot = (76, 175, 80) if pct < 80 else (245, 127, 23) if pct < 95 else (183, 28, 28)
         draw.ellipse([2, 2, 8, 8], fill=dot)
-        draw.text((12, 2), "Synthetic", fill=(255, 255, 255), font=font_title)
+        draw.text((12, 2), f"Synth·{wlabel}", fill=(255, 255, 255), font=font_title)
 
         pct_color = self._bar_color(pct)
         draw.text((36, 18), f"{pct:.0f}%", fill=pct_color, font=font_value, anchor="mt")
 
-        draw.text(
-            (4, 38), f"{used} / {limit}", fill=(180, 180, 180), font=font_small
-        )
+        draw.text((4, 38), self._format_used(h), fill=(180, 180, 180), font=font_small)
         draw.text(
             (4, 50), f"renews {renew_label}", fill=(180, 180, 180), font=font_small
         )
@@ -320,35 +442,41 @@ class SyntheticUsagePlugin(BasePlugin):
         self.update_image_raw(img)
 
     def _render_rotate(self) -> None:
-        d = self.usage_data or {}
-        limit = int(d.get("limit") or 0)
-        used = int(d.get("used") or 0)
-        remaining = int(d.get("remaining") or max(0, limit - used))
-        pct = float(d.get("utilization") or 0.0)
-        renew_label = self._format_renewal(d.get("renews_at"))
-
-        views = [
-            ("Used", f"{used}/{limit}"),
-            ("Free", str(remaining)),
-            ("Util", f"{pct:.0f}%"),
-            ("Renew", renew_label),
-        ]
-        idx = self.current_view % len(views)
-        label, value = views[idx]
+        """Cycle one window per tick across whichever windows are exposed."""
+        ordered = [w for w in _WINDOW_ORDER if w in self.windows]
+        if not ordered:
+            self._render_compact()
+            return
+        idx = self.current_view % len(ordered)
+        wid = ordered[idx]
+        w = self.windows[wid]
+        pct = float(w.get("utilization") or 0.0)
+        renew_label = self._format_renewal(w.get("renews_at"))
+        wlabel = _WINDOW_LABELS.get(wid, wid[:3])
 
         img = Image.new("RGB", (72, 72), (20, 20, 20))
         draw = ImageDraw.Draw(img)
         font_title = self._load_font(10)
-        font_label = self._load_font(12)
-        font_value = self._load_font(14)
+        font_value = self._load_font(13)
+        font_small = self._load_font(9)
 
         dot = (76, 175, 80) if pct < 80 else (245, 127, 23) if pct < 95 else (183, 28, 28)
         draw.ellipse([2, 2, 8, 8], fill=dot)
-        draw.text((12, 2), "Synthetic", fill=(255, 255, 255), font=font_title)
-        draw.text((36, 28), label, fill=(180, 180, 180), font=font_label, anchor="mt")
+        draw.text((12, 2), f"Synth·{wlabel}", fill=(255, 255, 255), font=font_title)
+
         draw.text(
-            (36, 46), value, fill=self._bar_color(pct), font=font_value, anchor="mt"
+            (36, 18), f"{pct:.0f}%", fill=self._bar_color(pct), font=font_value, anchor="mt"
         )
+        draw.text((4, 38), self._format_used(w), fill=(180, 180, 180), font=font_small)
+        draw.text(
+            (4, 50), f"renews {renew_label}", fill=(180, 180, 180), font=font_small
+        )
+
+        # Utilization bar
+        draw.rectangle([4, 63, 68, 69], fill=(30, 30, 30), outline=(80, 80, 80))
+        fill_w = int(64 * min(pct, 100) / 100)
+        if fill_w > 0:
+            draw.rectangle([5, 64, 4 + fill_w, 68], fill=self._bar_color(pct))
 
         self.update_image_raw(img)
 
@@ -404,7 +532,7 @@ class SyntheticUsagePlugin(BasePlugin):
                 self.error_message = None
             self.last_poll_time = current_time
             self._update_display()
-        if self.display_mode == "rotate" and self.usage_data:
+        if self.display_mode == "rotate" and self.windows:
             if current_time - self.last_rotate_time >= self.rotate_interval:
                 self.current_view += 1
                 self.last_rotate_time = current_time
