@@ -105,10 +105,14 @@ class SyntheticUsagePlugin(BasePlugin):
         """
         out: dict[str, dict[str, Any]] = {}
 
+        # Skip ``subscription`` when the user hasn't touched it — on
+        # pay-per-use plans this window is always 0/500 and only adds
+        # noise next to the real binding constraints (5h + weekly $).
+        # Reappears as soon as the first subscription request lands.
         sub = data.get("subscription") or {}
         sub_limit = float(sub.get("limit") or 0)
         sub_requests = float(sub.get("requests") or 0)
-        if sub_limit > 0:
+        if sub_limit > 0 and sub_requests > 0:
             out["subscription"] = {
                 "utilization": min(100.0, (sub_requests / sub_limit) * 100.0),
                 "used": int(sub_requests),
