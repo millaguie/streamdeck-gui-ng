@@ -1,0 +1,48 @@
+name: OpenCode Go Usage Monitor
+version: 1.0.0
+description: Shows OpenCode Go subscription utilization (rolling 5h, weekly, monthly) by scraping the workspace dashboard. Can also pull pre-aggregated data from a Quota Sentinel instance instead of scraping directly.
+author: StreamDeck UI Community
+entry_point: opencode_go_usage_plugin.py
+license: MIT
+
+lifecycle_mode: always_running
+can_switch_page: false
+
+max_retries: 5
+retry_delay: 30
+
+variables:
+  - name: workspace_id
+    type: string
+    description: "OpenCode workspace UUID. Find it in the URL bar after logging in to opencode.ai — the workspace dashboard lives at https://opencode.ai/workspace/<workspace_id>/go. Required for direct-scrape mode; the Quota Sentinel can read it from its own provider_config instead."
+    required: false
+
+  - name: auth_cookie
+    type: password
+    description: "Paste the VALUE of the 'auth' cookie from your browser (DevTools → Application/Storage → Cookies → opencode.ai → row 'auth' → copy the 'Value' column). Refresh when the meter reports HTTP 401 'auth cookie expired'."
+    required: false
+
+  - name: poll_interval
+    type: int
+    description: Polling interval in seconds (the dashboard updates roughly per-request, so polling much faster than 300s is wasteful).
+    required: false
+    default: 300
+
+  - name: display_mode
+    type: string
+    description: "Display mode: 'compact' shows up to 2 windows, 'rotate' cycles through all three (5h, weekly, monthly)."
+    required: false
+    default: compact
+
+  - name: rotate_interval
+    type: int
+    description: Seconds between view rotation (only used in rotate mode).
+    required: false
+    default: 5
+
+  - name: quota_sentinel_url
+    type: url
+    description: "Optional Quota Sentinel URL (e.g. http://localhost:7878). If set, the plugin queries the sentinel's /v1/providers/opencode_go instead of scraping opencode.ai itself — the sentinel handles workspace_id + auth_cookie centrally via its provider_config."
+    required: false
+
+icon: opencode_go_icon.png
