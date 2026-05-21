@@ -15,6 +15,7 @@ crof.ai → copy value of `session` cookie.
 """
 
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -32,7 +33,21 @@ MODELS_URL = "https://crof.ai/v1/models"
 CREDITS_URL = "https://crof.ai/user-api/credits"
 USAGE_URL = "https://crof.ai/user-api/usage"
 USABLE_REQUESTS_URL = "https://crof.ai/u_v2/get_usable_requests"
+DASHBOARD_URL = "https://crof.ai/dashboard"
 DEFAULT_OPENCODE_AUTH = str(Path.home() / ".local" / "share" / "opencode" / "auth.json")
+
+# crof.ai stopped returning the plan ceiling from /u_v2/get_usable_requests
+# (it now sends a bare fractional number, e.g. ``2872.5``). The ceiling only
+# survives in the dashboard's server-rendered string:
+#
+#     <pretty id="usable_requests">2872.5/6250</pretty>
+#
+# Scrape it once and cache it; it's static per plan. Numerator may be
+# fractional, so allow a decimal there.
+_PLAN_RE = re.compile(
+    r'<pretty[^>]*id="usable_requests"[^>]*>\s*\d+(?:\.\d+)?\s*/\s*(\d+)\s*</pretty>',
+    re.IGNORECASE,
+)
 
 
 class CrofStatusPlugin(BasePlugin):
@@ -58,18 +73,20 @@ class CrofStatusPlugin(BasePlugin):
         self.status_ok = False
         self.model_count = 0
         self.cheapest_model: str | None = None
-        self.cheapest_price: float | None = None  # $/M tokens (output)
+        self.cheapest_price: float | None = None  # $/M tokens (output), as reported by crof.ai
         self.fastest_model: str | None = None
         self.fastest_speed: int = 0
         self.auth_ok: bool | None = None  # None if no key configured
 
         # Session-cookie-only fields (None when no cookie configured)
         self.credits: float | None = None
-        self.usable_requests: int | None = None
+        self.usable_requests: float | None = None  # fractional, e.g. 2872.5
         self.requests_plan: int | None = None
         self.top_model: str | None = None
         self.top_model_tokens: int = 0
         self.session_ok: bool | None = None  # True if cookie is valid
+        # Plan ceiling scraped from the dashboard HTML (static per plan).
+        self._scraped_plan: int | None = None
 
     def _resolve_key(self) -> str:
         if self.api_key:
@@ -135,7 +152,10 @@ class CrofStatusPlugin(BasePlugin):
                     fastest = m.get('id')
 
             self.cheapest_model = cheapest
-            self.cheapest_price = cheapest_price * 1_000_000 if cheapest_price else None
+            # crof.ai's /v1/models reports pricing already in $/M tokens
+            # (e.g. completion "0.85"), so use it as-is. (It used to be
+            # per-token, which is why this multiplied by 1e6.)
+            self.cheapest_price = cheapest_price if cheapest_price else None
             self.fastest_model = fastest
             self.fastest_speed = fastest_speed
             return True
@@ -245,20 +265,49 @@ class CrofStatusPlugin(BasePlugin):
                     j = None
                 if isinstance(j, dict):
                     if 'usable_requests' in j:
-                        self.usable_requests = int(j.get('usable_requests') or 0)
+                        self.usable_requests = float(j.get('usable_requests') or 0)
                     if 'requests_plan' in j:
                         self.requests_plan = int(j.get('requests_plan') or 0)
                     if self.usable_requests is not None:
                         any_ok = True
                 elif isinstance(j, (int, float)):
-                    self.usable_requests = int(j)
+                    # crof.ai now returns a bare fractional number here.
+                    self.usable_requests = float(j)
                     any_ok = True
             except requests.exceptions.RequestException as e:
                 self.log(LogLevel.WARNING, f"usable_requests reparse failed: {e}")
 
+        # The plan ceiling is no longer in the JSON response — scrape it from
+        # the dashboard once and cache it (static per plan).
+        if self.usable_requests is not None and not self.requests_plan:
+            if self._scraped_plan is None:
+                self._scraped_plan = self._fetch_plan_from_dashboard(cookies, headers)
+            if self._scraped_plan:
+                self.requests_plan = self._scraped_plan
+
         self.session_ok = any_ok
         if not any_ok:
             self.log(LogLevel.WARNING, "Session cookie did not authenticate any endpoint")
+
+    def _fetch_plan_from_dashboard(self, cookies: dict[str, str], headers: dict[str, str]) -> int | None:
+        """Scrape the daily request plan ceiling from the dashboard HTML.
+
+        crof.ai only renders the ceiling as ``<pretty id="usable_requests">
+        2872.5/6250</pretty>`` — there's no JSON endpoint for it. Returns the
+        integer ceiling, or None if the page couldn't be fetched/parsed.
+        """
+        try:
+            r = requests.get(DASHBOARD_URL, cookies=cookies, headers=headers, timeout=10, allow_redirects=False)
+            if r.status_code != 200:
+                return None
+            m = _PLAN_RE.search(r.text)
+            if not m:
+                self.log(LogLevel.WARNING, "plan ceiling not found in dashboard HTML")
+                return None
+            return int(m.group(1))
+        except (requests.exceptions.RequestException, ValueError) as e:
+            self.log(LogLevel.WARNING, f"plan scrape failed: {e}")
+            return None
 
     def _fetch_status(self) -> bool:
         ok = self._fetch_models()
