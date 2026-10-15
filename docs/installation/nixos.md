@@ -7,12 +7,14 @@ See also the [Stream Deck](https://nixos.wiki/wiki/Stream_Deck) page on the NixO
 This is the preferred method so that udev rules are automatically set up.
 
 ```nix
+
 {
   programs.streamdeck-ui = {
     enable = true;
     autoStart = true; # optional
   };
 }
+
 ```
 
 ## Nix package

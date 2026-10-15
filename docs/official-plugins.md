@@ -31,11 +31,16 @@ hardware. On the plugin side, the [OpenAction](https://github.com/OpenActionAPI/
 ## What it does
 
 - Any installed executable bundle (a directory with a `manifest.json`, code and images) shows up in
+
   the button form under *Official Plugin*. A compatible one can be bound to any key, like the
   built-in commands.
+
 - The bundle runs as its own process and talks to the application over a loopback WebSocket, the
+
   way the plugin format intends. A broken bundle costs one key, never the page and never the app.
+
 - Images a plugin sends become overlays in the display pipeline, so dimming, rotation and the
+
   display lock keep working on top of them.
 
 ## The pieces
@@ -53,24 +58,37 @@ hardware. On the plugin side, the [OpenAction](https://github.com/OpenActionAPI/
 ## The plugin API, end to end
 
 1. **Start and handshake.** The host starts the bundle's program with the port of the WebSocket
+
    host, a fresh session uuid and the registration event name. The format hands these over
    positionally; the OpenAction library some bundles are built on looks for
    `-port`, `-pluginUuid` and `-registerEvent` instead, so the launcher satisfies both readers with
    one command line.
+
 2. **Registration.** The plugin connects back and sends the registration event with its uuid. The
+
    session uuid from the command line is what replies are routed to; the plugin's own uuid is the
    identity used for settings.
+
 3. **Placement.** Only keys on the currently visible page are told about themselves
+
    (`willAppear`/`willDisappear`), which is why a bundle does not need to track key indices.
+
 4. **Events the host sends** include `keyDown`, `keyUp`, `willAppear`, `willDisappear`,
+
    `dialDown`, `dialUp`, `dialRotate`, `touchTap`, `deviceDidConnect`/`deviceDidDisconnect`,
    `didReceiveSettings`, `titleParametersDidChange` and the property inspector relay events.
+
 5. **Events a plugin sends** include `setImage`, `setXYWHImage`, `setTitle`, `setState`, `showOk`,
+
    `showAlert`, `getSettings`/`setSettings`, `getGlobalSettings`/`setGlobalSettings`, `openUrl`,
    `logMessage` and `switchToProfile`.
+
 6. **Images** travel as base64 PNG. The deck sink flattens the alpha onto black (a black key is a
+
    key that is not lit), converts to the format the key wants and scales when the sizes differ.
+
 7. **Tolerance rules.** An event the host does not know is logged and dropped; a program a bundle
+
    names but does not ship is one dead key, not a failed page sync; a page sync that cannot find a
    placement tells the plugin it went away instead of throwing across the pipeline.
 
@@ -85,6 +103,7 @@ The support was written like a clean-room exercise, with the specification kept 
 implementation:
 
 1. **The specification is the observable interface.** The handshake entry point
+
    (`connectElgatoStreamDeckSocket`), the event names and the message shapes were written down from
    three inputs, all of them observable without anyone else's source code: the files a bundle
    itself ships (its manifest and the JavaScript its property inspector uses), the traffic bundles
@@ -92,12 +111,16 @@ implementation:
    implementation for the second dialect. OpenDeck — the other libre host for these bundles — was
    written independently and was not consulted; its public source, compared against after the
    fact, corroborates the same contract.
+
 2. **The implementation only ever saw the specification.** The host code in
+
    `streamdeck_ui/elgato_plugin/` was written against that written-down contract, and the tests are
    the contract in executable form: `tests/test_elgato_protocol.py` pins every message shape,
    `tests/test_elgato_service.py` pins the page-sync rules, and `tests/test_elgato_runtime.py`
    runs a real plugin process over a real WebSocket against a recorded deck.
+
 3. **Nothing from anyone else's tree enters this one.** No code, assets, profiles or binaries from
+
    any other product are inputs to the build. That claim is checkable by comparing the digests of
    the PNGs our build produces against the PNGs of any installed third-party bundle.
 
@@ -122,9 +145,12 @@ They matter beyond their function: they are the executable documentation of the 
 starts from the same two files these use:
 
 - `plugins/src/minino_runtime.py` — everything a bundle needs to talk to the host: it reads both
+
   handshake dialects and implements the WebSocket client with the standard library alone, so a
   bundle never depends on which Python packages the user happens to have installed.
+
 - `plugins/build_minino.py` — assembles a bundle directory (`manifest.json`, code, icons), draws
+
   the artwork with Pillow at the 144 px keys expect, and installs it into the plugins root under
   the state directory (`~/.streamdeck_ui/elgato_plugins` by default).
 
@@ -139,11 +165,14 @@ already-unpacked `.sdPlugin` folder there yourself, or you use the **Plugins** w
 `P` button next to the gear on the main window). The window has two tabs:
 
 - *Installed* lists every bundle the app can see — ours and third party ones alike — with a
+
   provenance note saying where each came from: `installed here` for bundles copied into our
   directory, `OpenAction catalogue vN (<url>)` for ones downloaded through the window,
   `shared directory (~/.config/opendeck/plugins)` for bundles another launcher on this machine
   put there, or `external location`. Bundles are read-only listings: nothing in that tab runs.
+
 - *Browse the catalogue* reads the open catalogue JSON that the community publishes
+
   (`openactionapi.github.io/plugins/catalogue.json`, the same one the marketplace website renders)
   and offers to download bundles published as release files of each plugin's repository. Bundles
   arrive either as `<uuid>.zip` or in the `.streamDeckPlugin` package format, which is a zip with
@@ -154,15 +183,22 @@ already-unpacked `.sdPlugin` folder there yourself, or you use the **Plugins** w
 A third-party bundle runs with your user's rights. The install path is deliberately boring:
 
 1. The download goes to a temporary folder over HTTPS. When the publisher states a SHA-256 digest
+
    on the release file, the downloaded bytes must match it before anything else happens.
+
 2. The archive is unpacked as data only: entries that would write outside the bundle folder, and
+
    symbolic links, are refused; the size and file-count budgets abort anything outlandish.
+
 3. `manifest.json` inside the bundle must parse and its UUID must match what is being installed —
+
    checked once in a scratch folder and once more while staging next to the target under a dot
    name that discovery ignores. Only then is the real `.sdPlugin` folder swapped into place, with
    the old one kept until the swap succeeded. A same-named old bundle is replaced only after an
    explicit confirmation.
+
 4. Where it came from (url, tag, digest) is recorded next to the plugin in
+
    `~/.streamdeck_ui/elgato_plugins/.marketplace.json`, and Remove deletes only bundles that
    belong to our own directory and whose manifest parses.
 
@@ -175,7 +211,10 @@ you so rather than pretending otherwise.
 ## Trying it
 
 1. Build and install the bundles: `python3 plugins/build_minino.py` (they land in
+
    `~/.streamdeck_ui/elgato_plugins`).
+
 2. Restart the app; the actions appear under *Official Plugin* in the button form.
 3. The unit tests do not need a deck attached:
+
    `QT_QPA_PLATFORM=offscreen python3 -m pytest tests/test_elgato_protocol.py tests/test_elgato_service.py tests/test_elgato_runtime.py -q`.

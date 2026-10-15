@@ -4,7 +4,7 @@ _________________
 [![PyPI version](https://badge.fury.io/py/streamdeck-ui.svg)](http://badge.fury.io/py/streamdeck-ui)
 [![Test Status](https://github.com/timothycrosley/streamdeck-ui/workflows/Test/badge.svg?branch=master)](https://github.com/timothycrosley/streamdeck-ui/actions?query=workflow%3ATest)
 [![codecov](https://codecov.io/gh/timothycrosley/streamdeck-ui/branch/master/graph/badge.svg)](https://codecov.io/gh/timothycrosley/streamdeck-ui)
-[![Join the chat at https://gitter.im/timothycrosley/streamdeck-ui](https://badges.gitter.im/timothycrosley/streamdeck-ui.svg)](https://gitter.im/timothycrosley/streamdeck-ui?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Join the chat at <https://gitter.im/timothycrosley/streamdeck-ui](https://badges.gitter.im/timothycrosley/streamdeck-ui.svg>)](https://gitter.im/timothycrosley/streamdeck-ui?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://pypi.python.org/pypi/streamdeck-ui/)
 [![Downloads](https://pepy.tech/badge/streamdeck-ui)](https://pepy.tech/project/streamdeck-ui)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
@@ -50,13 +50,17 @@ Die Namen dieser Bibliotheken können, abhängig von ihrem Betriebssystem, varii
 Debian / Ubuntu:
 
 ```bash
+
 sudo apt install python3-pip libhidapi-libusb0 libxcb-xinerama0
+
 ```
 
 Fedora:
 
 ```bash
+
 sudo dnf install python3-pip python3-devel hidapi
+
 ```
 
 Wenn sie die GNOME shell verwenden, könnten sie eine Erweiterung, die den [KStatusNotifierItem/AppIndicator Support](https://extensions.gnome.org/extension/615/appindicator-support/) bietet, manuell installieren müssen um das Tray-Icon anzuzeigen.
@@ -66,34 +70,46 @@ Um streamdeck_ui ohne root-Rechte zu benutzen, müssen sie ihrem user vollen Zug
 Fügen sie die folgenden udev rules mit Hilfe ihres Editors hinzu:
 
 ```bash
+
 sudoedit /etc/udev/rules.d/70-streamdeck.rules
+
 # Wenn das nicht funktioniert, versuchen sie:
+
 sudo nano /etc/udev/rules.d/70-streamdeck.rules
+
 ```
 
 Fügen sie die folgenden Zeilen ein:
 
 ```ini
+
 SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", TAG+="uaccess"
+
 ```
 
 Aktivieren sie die Regeln:
 
 ```bash
+
 sudo udevadm trigger
+
 ```
 
 Die Installation der Anwendung selbst erfolgt via pip:
 
 ```bash
+
 pip3 install streamdeck-ui --user
+
 ```
 
 Stellen sie sicher, dass `$HOME/.local/bin` in ihrem PATH enthalten ist.  
 Wenn das nicht der Fall ist, fügen sie
 
 ```ini
+
 PATH=$PATH:$HOME/.local/bin
+
 ```
 
 an das Ende ihrer shell Konfigurationsdatei (wahrscheinlich .bashrc in ihrem home directory) hinzu.
@@ -101,7 +117,9 @@ an das Ende ihrer shell Konfigurationsdatei (wahrscheinlich .bashrc in ihrem hom
 Jetzt können sie `streamdeck` starten um mit der Konfiguration zu beginnen.
 
 ```bash
+
 streamdeck
+
 ```
 
 Es wird empfohlen `streamdeck` in die Autostart-Liste ihrer Fenster-Umgebung aufzunehmen. Wenn sie es verwenden wollen ohne dass das Benutzer-Interface angezeigt wird, verwenden sie`streamdeck -n`.
@@ -112,8 +130,10 @@ Auf anderen Betriebssystemen müssen sie die benötigten [Abhängigkeiten](https
 Danach verwenden sie pip zur Installation der Anwendung:
 
 ```bash
+
 pip3 install streamdeck-ui --user
 streamdeck
+
 ```
 
 Beachten sie auch die Anleitungen für
@@ -138,7 +158,9 @@ Sie können ein tool wie `xdotool` verwenden, um mit anderen Programmen zu inter
 Finden sie das Fenster, das mit `Meet -` beginnt, und setzen sie den Fokus darauf. Das hilft ihnen, wenn sie eine Google Meet Sitzung auf irgend einem Tab haben, die aber hinter anderen Fenstern verloren gegangen ist.
 
 ```bash
+
 xdotool search --name '^Meet - .+$' windowactivate 
+
 ```
 
 > Der Meeting-Tab muss aktiv sein wenn sie mehrere Tabs offen haben, da der Fenstertitel vom derzeit aktiven Tab gesetzt wird.
@@ -146,19 +168,25 @@ xdotool search --name '^Meet - .+$' windowactivate
 Finden sie das Fenster, das mit `Meet -` beginnt, und senden sie `ctrl+d` dorthin. Das bewirkt das Umschalten der Stummschaltung (mute button) in Google Meet.
 
 ```bash
+
 xdotool search --name '^Meet - .+$' windowactivate --sync key ctrl+d
+
 ```
 
 Drehen sie die System-Lautstärke um einen gewissen Prozentsatz hoch (oder runter). Wir nehmen an, sie verwenden PulseAudio/Alsa Mixer.
 
 ```bash
+
 amixer -D pulse sset Master 20%+
+
 ```
 
 Wenn sie einen Befehl abgeben wollen der shell-script spezifische Dinge wie `&&` oder `|` enthält, dann starten sie ihn via bash. Dieser Befehl wird de Fokus auf Firefox setzen, indem es `wmctrl` nutzt, und dann den Fokus auf den ersten Tab verschieben:
 
 ```bash
+
 bash -c "wmctrl -a firefox  && xdotool key alt+1"
+
 ```
 
 ### Tasten drücken
@@ -195,7 +223,9 @@ Die Standardliste der Tasten finden sie [im source-code](https://pynput.readthed
 Die `super` Taste (Windows-Taste) kann bei einigen Linux-Versionen problematisch sein. Statt der Tastendruck-Funktion können sie dann die Befehls-Funktion wie folgt benutzen. In diesem Beispiel wollen wir die `Super` Taste und `4` drücken, was die Anwendung Nummer 4 ihrer Favoriten startet (Ubuntu).
 
 ```bash
+
 xdotool key "Super_L+4"
+
 ```
 
 ### Text schreiben
@@ -206,9 +236,11 @@ hier keine Spezial-(Modifikations-)Tasten akzeptiert werden. Wenn sie jedoch Ent
 #### Beispiele
 
 ```console
+
 Unfortunately that's a hard no.
 Kind regards,
 Joe
+
 ```
 
 ![nope](art/nope.gif)

@@ -22,18 +22,25 @@ This plugin monitors available system updates for Arch Linux and displays the up
 ### Installation
 
 ```bash
+
 # Install required package
+
 sudo pacman -S pacman-contrib
 
 # Optional: Install AUR helper
+
 # yay
+
 yay -S yay
 
 # paru
+
 sudo pacman -S paru
 
 # Optional: Install Flatpak
+
 sudo pacman -S flatpak
+
 ```
 
 ## Configuration
@@ -65,7 +72,7 @@ None! The plugin works with defaults, but you'll probably want to customize it.
 Different terminals use different flags to execute commands:
 
 | Terminal | terminal value | terminal_execute_flag |
-|----------|---------------|----------------------|
+| ---------- | --------------- | ---------------------- |
 | gnome-terminal | `gnome-terminal` | `--` |
 | konsole | `konsole` | `-e` |
 | xfce4-terminal | `xfce4-terminal` | `-x` |
@@ -106,26 +113,31 @@ The plugin runs three checks (if configured):
 ### Display States
 
 **Up to Date** (Green):
+
 - No updates available
 - Shows "Up to date" or "0 updates"
 
 **Updates Available** (Blue/Orange/Red):
+
 - Blue: 1-9 updates
 - Orange: 10-19 updates
 - Red: 20+ updates
 - Shows total count and breakdown by source
 
 **Checking** (Gray):
+
 - Currently checking for updates
 - Shows "Checking..."
 
 **Error** (Dark Red):
+
 - Error occurred during check
 - Shows "Error"
 
 ### Button Press
 
 When you press the button:
+
 1. Opens your configured terminal emulator
 2. Runs your configured update command
 3. You can interact with the update process
@@ -134,6 +146,7 @@ When you press the button:
 ### New Update Detection
 
 When new updates appear:
+
 1. Plugin detects the change
 2. If `notify_on_updates` is enabled:
    - Switches to the plugin's page
@@ -146,7 +159,9 @@ When new updates appear:
 ### Minimal Configuration
 
 ```yaml
+
 system_name: Main PC
+
 ```
 
 Uses all defaults - checks pacman updates every hour.
@@ -154,6 +169,7 @@ Uses all defaults - checks pacman updates every hour.
 ### Full Arch + AUR with yay
 
 ```yaml
+
 system_name: Desktop
 check_command: checkupdates
 aur_check_command: yay -Qu
@@ -163,38 +179,45 @@ terminal_execute_flag: -e
 check_interval: 1800  # 30 minutes
 notify_on_updates: true
 notify_duration: 15
+
 ```
 
 ### Pacman + Flatpak
 
 ```yaml
+
 system_name: Laptop
 flatpak_check: true
 update_command: sudo pacman -Syu && flatpak update
 terminal: konsole
 terminal_execute_flag: -e
 check_interval: 7200  # 2 hours
+
 ```
 
 ### Server (No AUR, frequent checks)
 
 ```yaml
+
 system_name: Server
 check_interval: 600  # 10 minutes
 notify_on_updates: true
 notify_duration: 30  # Show longer for servers
 terminal: xterm
 terminal_execute_flag: -e
+
 ```
 
 ### Using paru instead of yay
 
 ```yaml
+
 system_name: Workstation
 aur_check_command: paru -Qu
 update_command: paru -Syu
 terminal: kitty
 terminal_execute_flag: -e
+
 ```
 
 ### Custom Check Command
@@ -202,8 +225,10 @@ terminal_execute_flag: -e
 For systems with custom update scripts:
 
 ```yaml
+
 check_command: /usr/local/bin/my-check-updates
 update_command: /usr/local/bin/my-update-system
+
 ```
 
 ## Troubleshooting
@@ -211,23 +236,32 @@ update_command: /usr/local/bin/my-update-system
 ### "Command not found: checkupdates"
 
 Install pacman-contrib:
+
 ```bash
+
 sudo pacman -S pacman-contrib
+
 ```
 
 ### AUR Updates Not Showing
 
 1. Verify AUR helper is installed:
+
    ```bash
+
    which yay
    # or
    which paru
+
    ```
 
 2. Test the command manually:
+
    ```bash
+
    yay -Qu
    # Should list available updates
+
    ```
 
 3. Check plugin logs for errors
@@ -235,20 +269,27 @@ sudo pacman -S pacman-contrib
 ### Terminal Doesn't Open
 
 1. Verify terminal is installed:
+
    ```bash
+
    which gnome-terminal
+
    ```
 
 2. Check terminal execute flag is correct (see table above)
 
 3. Test command manually:
+
    ```bash
+
    gnome-terminal -- bash -c "echo test; sleep 5"
+
    ```
 
 ### Button Shows "Error"
 
 Check the plugin logs for detailed error messages. Common causes:
+
 - Missing dependencies
 - Incorrect command syntax
 - Permission issues
@@ -258,15 +299,20 @@ Check the plugin logs for detailed error messages. Common causes:
 
 1. Verify check interval hasn't expired yet
 2. Manually check for updates:
+
    ```bash
+
    checkupdates
+
    ```
+
 3. Check if updates are actually available
 4. Review plugin logs for check failures
 
 ### Too Many False Positives
 
 Some AUR helpers might show packages that don't really need updates:
+
 - Check your AUR helper configuration
 - Increase `check_interval` to reduce checks
 - Disable `notify_on_updates` for less interruptions
@@ -276,50 +322,77 @@ Some AUR helpers might show packages that don't really need updates:
 ### Update Commands
 
 **Basic pacman update:**
+
 ```bash
+
 sudo pacman -Syu
+
 ```
 
 **Update with yay (AUR):**
+
 ```bash
+
 yay -Syu
+
 ```
 
 **Update with paru (AUR):**
+
 ```bash
+
 paru -Syu
+
 ```
 
 **Update pacman and Flatpak:**
+
 ```bash
+
 sudo pacman -Syu && flatpak update
+
 ```
 
 **Update with confirmation:**
+
 ```bash
+
 sudo pacman -Syu --noconfirm  # Be careful!
+
 ```
 
 **Custom script:**
+
 ```bash
+
 /usr/local/bin/system-update.sh
+
 ```
 
 ### Check Commands
 
 **Standard pacman:**
+
 ```bash
+
 checkupdates
+
 ```
 
 **Alternative (requires root):**
+
 ```bash
+
 sudo pacman -Sy && pacman -Qu
+
 ```
 
 **Custom sync first:**
+
 ```bash
+
 sudo pacman -Sy > /dev/null 2>&1; checkupdates
+
 ```
 
 ## Tips
@@ -354,7 +427,7 @@ sudo pacman -Sy > /dev/null 2>&1; checkupdates
 This plugin provides similar functionality to the [arch-update](https://github.com/RaphaelRochet/arch-update) GNOME extension but for Stream Deck:
 
 | Feature | arch-update | This Plugin |
-|---------|------------|-------------|
+| --------- | ------------ | ------------- |
 | Check for updates | ✓ | ✓ |
 | Show count | ✓ | ✓ |
 | AUR support | ✓ | ✓ |
@@ -389,5 +462,6 @@ MIT License - Feel free to modify and distribute
 ## Credits
 
 Inspired by:
+
 - [arch-update](https://github.com/RaphaelRochet/arch-update) by Raphaël Rochet
 - The Arch Linux community and package maintainers

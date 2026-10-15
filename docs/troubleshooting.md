@@ -20,13 +20,17 @@ There are **four** important things you need to get a working system.
 If you get an error such as:
 
 ```bash
+
 ImportError: cannot import name 'QtWidgets' from 'PySide6'
+
 ```
 
 This usually means a problem with PySide6. Try resolving with this:
 
 ```bash
+
 python -m pip install --force-reinstall --no-cache-dir pyside6
+
 ```
 
 ## No System Tray Indicator
@@ -34,7 +38,9 @@ python -m pip install --force-reinstall --no-cache-dir pyside6
 You may receive an error like this on start-up:
 
 ```bash
+
 qt.core.qobject.connect: QObject::connect: No such signal QPlatformNativeInterface::systemTrayWindowChanged(QScreen*)
+
 ```
 
 This is because gnome does not provide a System Tray out the box and you will need an extension
@@ -45,14 +51,18 @@ This is because gnome does not provide a System Tray out the box and you will ne
 You may get the following error:
 
 ```bash
+
 qt.qpa.plugin: Could not load the Qt platform plugin "xcb" in "" even though it was found.
 This application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.
+
 ```
 
  On Ubuntu, resolve this problem by installing:
 
 ```bash
+
 sudo apt install libxcb-xinerama0
+
 ```
 
 > You may encounter a similar error where the cause is "libxcb-cursor.so.0: cannot open shared object file: No such file or directory". This can be resolved by installing the `libxcb-cursor0` package.
@@ -60,7 +70,9 @@ sudo apt install libxcb-xinerama0
 On Arch, resolve this problem by installing:
 
 ```bash
+
 sudo pacman -S qt6-base
+
 ```
 
 You could also try [`qt5-x11extras`](https://archlinux.org/packages/extra/x86_64/qt5-x11extras/) if `qt6-base` didn't work for you.
@@ -70,5 +82,7 @@ You could also try [`qt5-x11extras`](https://archlinux.org/packages/extra/x86_64
 This module is part of `setuptools` but may be missing on your system.
 
 ```bash
+
 python -m pip install setuptools
+
 ```

@@ -190,10 +190,12 @@ def test_a_plugin_that_dies_under_positionals_gets_the_flag_form(tmp_path):
 def test_the_working_form_is_remembered_for_next_time(tmp_path):
     from streamdeck_ui.elgato_plugin import launcher
 
-    # Only a process that proved it can stay up feeds the memory, so this one lingers.
+    # Only a process that proved it can stay up feeds the memory, so this one lingers clearly
+    # past the early-exit window instead of racing a hardcoded number.
+    linger = launcher.EARLY_EXIT_SECONDS + 0.3
     lingering = GO_STYLE_PLUGIN.replace(
         'open(os.environ["REA_OK"], "w").write(",".join(args))',
-        'open(os.environ["REA_OK"], "w").write(",".join(args)); import time; time.sleep(0.4)',
+        'open(os.environ["REA_OK"], "w").write(",".join(args)); import time; time.sleep(%r)' % linger,
     )
     launch_and_wait(tmp_path, lingering)
     assert launcher.KNOWN_HANDSHAKES[TEST_PLUGIN_UUID] == "flags"

@@ -275,7 +275,10 @@ def _default_log(level: str, message: str) -> None:
 # gets the other form; an exit code of zero inside the window belongs to scripts that simply are
 # short, so it is never retried. Past this moment the plugin runs untouched: it may have opened
 # files, ports or windows already. Interpreters boot fast, so the decision must be made early.
-EARLY_EXIT_SECONDS = 0.1
+# How long a spawn gets to prove it stays up. A bundle that rejects a handshake exits in
+# milliseconds; one that accepts it lives forever. Half a second is still "right away" for that
+# verdict while leaving room for slow spawns on loaded CI runners.
+EARLY_EXIT_SECONDS = 0.5
 
 # Plugin uuid -> handshake style that kept its process alive, learned at launch and reused on
 # restart so a plugin known to want flags is not run through a doomed spawn every time.
