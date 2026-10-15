@@ -42,6 +42,12 @@ class ButtonState:
     """Plugin configuration"""
     plugin_can_switch_page: bool = False
     """Whether the plugin can request page switches"""
+    elgato_plugin_id: str = ""
+    """Official format plugin that owns this button"""
+    elgato_action_id: str = ""
+    """Official format action this button runs"""
+    elgato_settings: dict[str, Any] = field(default_factory=dict)
+    """Settings handed to the official format action"""
 
 
 @dataclass

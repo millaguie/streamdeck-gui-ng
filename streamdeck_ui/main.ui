@@ -109,6 +109,32 @@
            </widget>
           </item>
           <item>
+           <widget class="QPushButton" name="pluginsButton">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>30</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="toolTip">
+             <string>Manage plugins</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="icon">
+             <iconset resource="resources.qrc">
+              <normaloff>:/icons/icons/plugins.png</normaloff>:/icons/icons/plugins.png</iconset>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QProgressBar" name="cpu_usage">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Fixed" vsizetype="Expanding">

@@ -6,5 +6,6 @@
     <file>icons/vertical-align.png</file>
     <file>icons/add_page.png</file>
     <file>icons/remove_page.png</file>
+    <file>icons/plugins.png</file>
   </qresource>
 </RCC>

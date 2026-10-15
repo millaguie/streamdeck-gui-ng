@@ -6,6 +6,8 @@ from StreamDeck import DeviceManager
 from StreamDeck.Devices.StreamDeck import StreamDeck
 from StreamDeck.Transport.Transport import TransportError
 
+from streamdeck_ui.device_detection import enumerate_streamdecks
+
 
 class StreamDeckMonitor:
     """Periodically checks if Stream Decks are attached or
@@ -86,7 +88,7 @@ class StreamDeckMonitor:
             with self.lock:
                 attached_streamdecks = []
                 try:
-                    attached_streamdecks = DeviceManager.DeviceManager().enumerate()
+                    attached_streamdecks = enumerate_streamdecks()
                     showed_libusb_help = False
                 except DeviceManager.ProbeError:
                     if not showed_libusb_help:

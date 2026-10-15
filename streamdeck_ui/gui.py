@@ -189,8 +189,9 @@ class DraggableButton(QToolButton):
             return
 
         menu = QMenu(self)
-        menu.setStyleSheet("QMenu { background-color: #2b2b2b; color: white; }"
-                           "QMenu::item:selected { background-color: #4a4a4a; }")
+        menu.setStyleSheet(
+            "QMenu { background-color: #2b2b2b; color: white; }" "QMenu::item:selected { background-color: #4a4a4a; }"
+        )
         pages = self.api.get_pages(deck_id)
 
         move_menu = menu.addMenu("Move to page")
@@ -220,9 +221,7 @@ class DraggableButton(QToolButton):
             confirm = QMessageBox(self)
             confirm.setWindowTitle("Clear button")
             confirm.setText("Remove this button's configuration?")
-            confirm.setStandardButtons(
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
+            confirm.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             confirm.setIcon(QMessageBox.Icon.Question)
             if confirm.exec() == QMessageBox.StandardButton.Yes:
                 self.api.clear_button(deck_id, page_id, button_index)
@@ -690,6 +689,7 @@ def build_button_state_form(tab) -> None:
     mode_selector.addItem("Command/Keys/Write", "command")
     mode_selector.addItem("Switch Page", "switch_page")
     mode_selector.addItem("Plugin", "plugin")
+    mode_selector.addItem("Official Plugin", "official")
     mode_selector.setObjectName("button_mode_selector")
 
     # Insert at the beginning of the form (row 0, shift everything down)
@@ -771,14 +771,19 @@ def build_button_state_form(tab) -> None:
     # Add plugin configuration UI
     _build_plugin_configuration_ui(tab, tab_ui, deck_id, page_id, button_id, button_state_id)
 
+    # Add the official (Elgato format) plugin section
+    _build_official_plugin_ui(tab, tab_ui, deck_id, page_id, button_id, button_state_id)
+
     # Apply initial mode visibility
     _apply_button_mode_visibility(tab_ui, current_mode)
 
 
 def _determine_button_mode(button_state):
     """Determine the current button mode based on its state."""
-    # Priority: plugin > switch_page > command
-    if button_state.plugin_id:
+    # Priority: official plugin > plugin > switch_page > command
+    if button_state.elgato_plugin_id:
+        return "official"
+    elif button_state.plugin_id:
         return "plugin"
     elif button_state.switch_page > 0 or button_state.temp_switch_page > 0:
         return "switch_page"
@@ -814,6 +819,17 @@ def _handle_button_mode_change(tab, tab_ui, deck_id, page_id, button_id, button_
         # Clear switch page settings
         api.set_button_switch_page(deck_id, page_id, button_id, 0)
         api.set_button_temp_switch_page(deck_id, page_id, button_id, 0)
+        # A button has one owner, so let go of any official plugin
+        _clear_official_binding(deck_id, page_id, button_id, button_state_id)
+    elif mode == "official":
+        # Clear everything else a plugin would fight with
+        api.set_button_command(deck_id, page_id, button_id, "")
+        api.set_button_keys(deck_id, page_id, button_id, "")
+        api.set_button_write(deck_id, page_id, button_id, "")
+        api.set_button_switch_page(deck_id, page_id, button_id, 0)
+        api.set_button_temp_switch_page(deck_id, page_id, button_id, 0)
+        if api.get_button_plugin_id(deck_id, page_id, button_id):
+            api.detach_plugin_from_button(deck_id, page_id, button_id)
 
     # Apply visibility changes
     _apply_button_mode_visibility(tab_ui, mode)
@@ -849,6 +865,9 @@ def _apply_button_mode_visibility(tab_ui, mode):
     # Show/hide plugin configuration group box
     if hasattr(tab_ui, "plugin_group"):
         tab_ui.plugin_group.setVisible(mode == "plugin")
+
+    if hasattr(tab_ui, "official_group"):
+        tab_ui.official_group.setVisible(mode == "official")
 
 
 def _build_plugin_configuration_ui(tab, tab_ui, deck_id, page_id, button_id, button_state_id):
@@ -928,6 +947,135 @@ def _build_plugin_configuration_ui(tab, tab_ui, deck_id, page_id, button_id, but
 
     # Initialize the config form
     _on_plugin_selected(tab, deck_id, page_id, button_id, button_state_id)
+
+
+def _build_official_plugin_ui(tab, tab_ui, deck_id, page_id, button_id, button_state_id):
+    """Section for plugins that speak the plugin protocol of the official format."""
+    from PySide6.QtWidgets import QComboBox, QGroupBox, QLabel, QVBoxLayout
+
+    group = QGroupBox("Official Plugin (Elgato format)")
+    layout = QVBoxLayout()
+
+    combo = QComboBox()
+    combo.setObjectName("official_action_select")
+    combo.addItem("(No Official Plugin)", None)
+    binding = api.get_button_official_binding(deck_id, page_id, button_id, button_state_id)
+    for plugin_uuid, action_uuid, name in api.get_official_plugin_actions():
+        reason = _official_action_problem(plugin_uuid)
+        if reason and (plugin_uuid, action_uuid) != tuple(binding):
+            # A web plugin, or one that only ships a Windows program, is not a choice at all.
+            continue
+        combo.addItem(
+            f"{name} [{plugin_uuid}]" if not reason else f"{name} [{plugin_uuid}] - {reason}",
+            (plugin_uuid, action_uuid),
+        )
+    if binding[0] and binding[1]:
+        index = _official_action_index(combo, binding)
+        if index >= 0:
+            combo.blockSignals(True)
+            combo.setCurrentIndex(index)
+            combo.blockSignals(False)
+
+    info = QLabel()
+    info.setWordWrap(True)
+    info.setStyleSheet("QLabel { color: #666; font-style: italic; }")
+
+    layout.addWidget(QLabel("Select Action:"))
+    layout.addWidget(combo)
+    layout.addWidget(info)
+    group.setLayout(layout)
+    tab_ui.formLayout.addRow(group)
+
+    tab.official_widgets = {
+        "group": group,
+        "select": combo,
+        "info": info,
+        "mode": tab_ui.button_mode_selector,
+        "state": button_state_id,
+    }
+    tab_ui.official_group = group
+
+    combo.currentIndexChanged.connect(
+        lambda: _on_official_action_selected(tab, deck_id, page_id, button_id, button_state_id)
+    )
+    _refresh_official_action_info(tab, deck_id, page_id, button_id, button_state_id)
+
+
+def _official_action_problem(plugin_uuid: str) -> str:
+    """Why this bundle cannot run here, or "" when it can."""
+    manifest = api.elgato_plugins.plugins.get(plugin_uuid)
+    if manifest is None:
+        return "not installed"
+    if manifest.needs_web_view:
+        return "needs a web view"
+    if manifest.executable() is None:
+        return "no program for this platform"
+    return ""
+
+
+def _official_action_index(combo, binding) -> int:
+    """Row of one (plugin, action) pair in the combo, or -1.
+
+    QComboBox.findData() says -1 here for a pair that is plainly in the list, so the rows are
+    compared in Python instead of trusting QVariant equality.
+    """
+    wanted = tuple(binding)
+    for row in range(combo.count()):
+        data = combo.itemData(row)
+        if data is not None and tuple(data) == wanted:
+            return row
+    return -1
+
+
+def _on_official_action_selected(tab, deck_id, page_id, button_id, state=None):
+    """Attaches or detaches the official action chosen on one state of the button form."""
+    selection = tab.official_widgets["select"].currentData()
+    if selection is None:
+        api.set_button_official_binding(deck_id, page_id, button_id, "", "", state)
+    else:
+        mode_selector = tab.official_widgets["mode"]
+        index = mode_selector.findData("official")
+        if index >= 0 and mode_selector.currentData() != "official":
+            mode_selector.setCurrentIndex(index)
+        api.set_button_official_binding(deck_id, page_id, button_id, selection[0], selection[1], state)
+    _refresh_official_action_info(tab, deck_id, page_id, button_id, state)
+
+
+def _clear_official_binding(deck_id, page_id, button_id, state=None):
+    plugin_uuid, action_uuid = api.get_button_official_binding(deck_id, page_id, button_id, state)
+    if plugin_uuid or action_uuid:
+        api.set_button_official_binding(deck_id, page_id, button_id, "", "", state)
+
+
+def _refresh_official_action_info(tab, deck_id, page_id, button_id, state=None):
+    """Tells the user, in plain words, whether this binding can actually run."""
+    info = tab.official_widgets["info"]
+    where = " or ".join(str(directory) for directory in api.elgato_plugins.plugin_directories)
+    plugin_uuid, action_uuid = api.get_button_official_binding(deck_id, page_id, button_id, state)
+    if not plugin_uuid:
+        info.setText(f"Plugin bundles (.sdPlugin) found in {where} are listed here.")
+        return
+
+    manifest = api.elgato_plugins.plugins.get(plugin_uuid)
+    if manifest is None:
+        info.setText(f"{plugin_uuid} is not installed. Put its bundle in {where}.")
+        return
+
+    action = manifest.action(action_uuid)
+    if action is None:
+        info.setText(f"{manifest.name} has no action called {action_uuid}.")
+        return
+
+    if manifest.needs_web_view:
+        info.setText(f"{manifest.name} is a web plugin: running it needs a web view, which this app has not got yet.")
+        return
+
+    executable = manifest.executable()
+    if executable is None:
+        info.setText(f"{manifest.name} ships no program for this platform, so it cannot start.")
+        return
+
+    info.setText(f"{manifest.name} v{manifest.version} starts {executable.name} when this page is shown.")
 
 
 def _on_plugin_selected(tab, deck_id, page_id, button_id, button_state_id):
@@ -1092,12 +1240,11 @@ def _on_plugin_configure(tab, deck_id, page_id, button_id, button_state_id):
             info_btn.setFlat(True)
             info_btn.setFixedSize(18, 18)
             info_btn.setToolTip(var.description)
-            info_btn.setStyleSheet(
-                "QPushButton { border: none; color: #2a82da; font-weight: bold; }"
-            )
+            info_btn.setStyleSheet("QPushButton { border: none; color: #2a82da; font-weight: bold; }")
             info_btn.clicked.connect(
-                lambda _checked=False, title=short, body=var.description:
-                QMessageBox.information(dialog, title.rstrip(" *:"), body)
+                lambda _checked=False, title=short, body=var.description: QMessageBox.information(
+                    dialog, title.rstrip(" *:"), body
+                )
             )
             h.addWidget(info_btn)
         h.addStretch()
@@ -1132,7 +1279,7 @@ def _on_plugin_configure(tab, deck_id, page_id, button_id, button_state_id):
         elif var.type == VariableType.SELECT:
             widget = QComboBox()
             # Accept either bare values or {"value": x, "label": y} entries.
-            for choice in (var.choices or []):
+            for choice in var.choices or []:
                 if isinstance(choice, dict):
                     widget.addItem(str(choice.get("label", choice.get("value", ""))), choice.get("value"))
                 else:
@@ -1830,6 +1977,7 @@ def create_main_window(api: StreamDeckServer, app: QApplication) -> MainWindow:
     ui = main_window.ui
 
     ui.settingsButton.clicked.connect(partial(show_settings, main_window))
+    ui.pluginsButton.clicked.connect(partial(show_plugin_manager, main_window))
     ui.add_page.clicked.connect(handle_new_page)
     ui.remove_page.clicked.connect(handle_delete_page_with_confirmation)
     ui.add_button_state.clicked.connect(handle_new_button_state)
@@ -1860,6 +2008,14 @@ def create_main_window(api: StreamDeckServer, app: QApplication) -> MainWindow:
     api.plugevents.cpu_changed.connect(partial(streamdeck_cpu_changed, ui))
 
     return main_window
+
+
+def show_plugin_manager(window: MainWindow) -> None:
+    """Shows the plugin manager: installed bundles with their provenance and the open catalogue."""
+    from streamdeck_ui.plugin_manager_dialog import PluginManagerDialog
+
+    dialog = PluginManagerDialog(window, service=api.elgato_plugins)
+    dialog.exec()
 
 
 def show_migration_config_warning_and_check(app: QApplication) -> None:

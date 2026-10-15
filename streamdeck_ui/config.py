@@ -189,6 +189,9 @@ def _to_button_state(button: dict) -> ButtonState:
         plugin_id=button.get("plugin_id", ""),
         plugin_config=button.get("plugin_config", {}),
         plugin_can_switch_page=button.get("plugin_can_switch_page", False),
+        elgato_plugin_id=button.get("elgato_plugin_id", ""),
+        elgato_action_id=button.get("elgato_action_id", ""),
+        elgato_settings=button.get("elgato_settings", {}),
     )
 
 
@@ -239,6 +242,9 @@ def _to_button_config(button: ButtonState) -> dict:
         "plugin_id": button.plugin_id,
         "plugin_config": button.plugin_config,
         "plugin_can_switch_page": button.plugin_can_switch_page,
+        "elgato_plugin_id": button.elgato_plugin_id,
+        "elgato_action_id": button.elgato_action_id,
+        "elgato_settings": button.elgato_settings,
     }
 
 
