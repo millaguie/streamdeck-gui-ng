@@ -29,6 +29,7 @@ nav:
     - From Source: installation/source.md
     - Systemd: installation/systemd.md
   - troubleshooting.md
+  - Official plugins: official-plugins.md
   - Contributing:
     - contributing/contributing-guide.md
     - Coding standard: contributing/coding-standard.md

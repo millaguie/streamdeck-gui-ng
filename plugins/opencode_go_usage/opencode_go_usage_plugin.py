@@ -25,6 +25,7 @@ import json
 import re
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +39,19 @@ from streamdeck_ui.plugin_system.browser_cookies import CookieError, list_cookie
 from streamdeck_ui.plugin_system.protocol import LogLevel  # noqa: E402
 
 DASHBOARD_URL = "https://opencode.ai/workspace/{workspace_id}/go"
+CONSOLE_STATUS_URL = "https://opencode.ai/console/api/go/status"
 COOKIE_DOMAIN = "opencode.ai"
+# __Host- prefixed cookie: exact-host only, list_cookies must see 'opencode.ai'
+CONSOLE_COOKIE = "__Host-console_session"
+_CHROMIUM_BROWSERS = ("chrome", "brave", "chromium")
+_BROWSER_ORDER = ("firefox",) + _CHROMIUM_BROWSERS
+
+# Console meter key -> window name used in self.windows/self.resets.
+METER_WINDOWS = {
+    "fiveHour": "rolling_5h",
+    "week": "weekly",
+    "month": "monthly",
+}
 _BROWSER_UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -200,8 +213,15 @@ class OpencodeGoUsagePlugin(BasePlugin):
                 if "reset_in_sec" in meta:
                     try:
                         self.resets[name] = float(meta["reset_in_sec"])
+                        continue
                     except (TypeError, ValueError):
                         pass
+                resets_at = self._parse_iso(w.get("resets_at"))
+                self.resets[name] = (
+                    max(0.0, (resets_at - datetime.now(timezone.utc)).total_seconds())
+                    if resets_at
+                    else 0.0
+                )
             self.has_data = True
             return True
         except requests.exceptions.RequestException as e:
@@ -210,6 +230,118 @@ class OpencodeGoUsagePlugin(BasePlugin):
             return False
 
     # ── Direct-mode scrape ─────────────────────────────────────────────────
+
+    def _browser_candidates(self) -> list[str]:
+        if self.browser in ("auto", ""):
+            return list(_BROWSER_ORDER)
+        return [self.browser]
+
+    def _resolve_console_session(self) -> str:
+        """__Host-console_session is exact-host; 'auto' would miss it because
+        Firefox stores the parent domain, so Chromium browsers are tried in
+        order and any hit counts (not first-browser-wins like auth)."""
+        if self.browser == "disabled":
+            return ""
+        for browser in self._browser_candidates():
+            if browser not in _CHROMIUM_BROWSERS:
+                continue
+            try:
+                cookies = list_cookies(self.cookie_domain, browser=browser)
+            except CookieError as e:
+                self.log(LogLevel.WARNING, f"browser cookie lookup failed ({browser}): {e}")
+                continue
+            value = cookies.get(CONSOLE_COOKIE)
+            if value:
+                return value
+        return ""
+
+    def _resolve_workspace_id(self) -> str:
+        """A pasted workspace_id wins; otherwise ask the console API which
+        orgs this session can see (first one, same as the dashboard)."""
+        if self.workspace_id:
+            return self.workspace_id
+        token = self._resolve_console_session()
+        if not token:
+            return ""
+        try:
+            resp = requests.get(
+                "https://opencode.ai/console/api/orgs",
+                headers={"User-Agent": _BROWSER_UA, "Authorization": f"Bearer {token}"},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                orgs = resp.json()
+                if orgs and isinstance(orgs[0], dict):
+                    return orgs[0].get("id") or ""
+        except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+            self.log(LogLevel.WARNING, f"could not resolve workspace via console API: {e}")
+        return ""
+
+    @staticmethod
+    def _parse_iso(value: str | None) -> datetime | None:
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
+
+    def _fetch_from_console_api(self) -> bool:
+        token = self._resolve_console_session()
+        workspace_id = self._resolve_workspace_id()
+        if not token or not workspace_id:
+            return False
+        try:
+            resp = requests.get(
+                CONSOLE_STATUS_URL,
+                headers={
+                    "User-Agent": _BROWSER_UA,
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {token}",
+                    "x-org-id": workspace_id,
+                },
+                timeout=10,
+            )
+            if resp.status_code in (401, 403):
+                self.log(LogLevel.WARNING, "console session expired — re-login at opencode.ai")
+                return False
+            resp.raise_for_status()
+            status = resp.json()
+        except requests.exceptions.RequestException as e:
+            self.log(LogLevel.ERROR, f"console API fetch failed: {e}")
+            return False
+
+        access = status.get("access") or {}
+        meters = access.get("meters") or {}
+        now = datetime.now(timezone.utc)
+        windows: dict[str, float] = {}
+        resets: dict[str, float] = {}
+        for meter_key, name in METER_WINDOWS.items():
+            meter = meters.get(meter_key)
+            if not isinstance(meter, dict):
+                continue
+            try:
+                limit = int(meter["limitMicroCents"])
+                used = int(meter["usedMicroCents"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            windows[name] = max(0.0, min(100.0, used / limit * 100.0)) if limit > 0 else 0.0
+            resets_at = self._parse_iso(meter.get("resetsAt")) or self._parse_iso(
+                access.get("endsAt")
+            )
+            resets[name] = max(0.0, (resets_at - now).total_seconds()) if resets_at else 0.0
+
+        if not windows:
+            self.log(LogLevel.WARNING, "console status had no meters (access missing?)")
+            return False
+        self.windows = windows
+        self.resets = resets
+        self.has_data = True
+        self.error_message = None
+        return True
 
     def _resolve_auth_cookie(self) -> str:
         """Browser-extraction wins over the pasted value when ``browser`` is set."""
@@ -278,9 +410,11 @@ class OpencodeGoUsagePlugin(BasePlugin):
         return True
 
     def _fetch_usage(self) -> bool:
-        # Sentinel-first when configured, with fall-through to direct
-        # mode so a misconfigured / restarting / outdated sentinel never
-        # blacks out the badge as long as direct mode still has creds.
+        # Console API first (exact meters, no scraping), then sentinel, then
+        # the legacy SSR scrape — a dead or outdated path never blacks out
+        # the badge as long as another still has valid credentials.
+        if self._fetch_from_console_api():
+            return True
         if self.quota_sentinel_url and self._fetch_from_sentinel():
             self.error_message = None
             return True
@@ -340,6 +474,31 @@ class OpencodeGoUsagePlugin(BasePlugin):
             "monthly": "MONTH",
         }.get(name, name[:5].upper())
 
+    def _renewal_label(self, name: str | None = None) -> str:
+        """Short local-date label for a window reset, e.g. ``ren 24/10``.
+
+        With no ``name`` it picks the soonest upcoming reset across windows.
+        Returns "" when there is no reset information.
+        """
+        if name is None:
+            # Prefer the plan-level (monthly) renewal; fall back to the next
+            # window that actually has a reset time.
+            for pref in ("monthly", "weekly", "rolling_5h"):
+                if self.resets.get(pref, 0) > 0:
+                    name = pref
+                    break
+            else:
+                for win, secs in self.resets.items():
+                    if secs and secs > 0 and (name is None or secs < self.resets[name]):
+                        name = win
+        if name is None:
+            return ""
+        secs = self.resets.get(name) or 0
+        if secs <= 0:
+            return ""
+        when = datetime.now().astimezone() + timedelta(seconds=secs)
+        return f"ren {when:%-d/%-m}"
+
     # ── Display ───────────────────────────────────────────────────────────
 
     def _update_display(self) -> None:
@@ -398,8 +557,11 @@ class OpencodeGoUsagePlugin(BasePlugin):
         draw.text((12, 2), "OC Go", fill=(250, 199, 29), font=font_title)
 
         ordered = self._ordered_windows()
+        # In compact mode show at most 2; prefer non-empty windows so a
+        # fresh (0%) rolling/weekly doesn't crowd out the monthly bar.
+        shown = [t for t in ordered if t[1] >= 0.05][:2] or ordered[:2]
         y = 16
-        for name, pct in ordered[:2]:
+        for name, pct in shown:
             label = self._short_label(name)
             draw.text((4, y), label, fill=(180, 180, 180), font=font_label)
             draw.text(
@@ -411,6 +573,12 @@ class OpencodeGoUsagePlugin(BasePlugin):
             )
             self._draw_bar(draw, 4, y + 11, 64, 6, pct)
             y += 22
+
+        renewal = self._renewal_label()
+        if renewal:
+            draw.text(
+                (36, y + 4), renewal, fill=(150, 150, 150), font=font_label, anchor="mt"
+            )
 
         self.update_image_raw(img)
 
@@ -445,6 +613,16 @@ class OpencodeGoUsagePlugin(BasePlugin):
         draw.text((36, 34), f"{pct:.0f}%", fill=color, font=font_value, anchor="mt")
 
         self._draw_bar(draw, 4, 60, 64, 8, pct)
+
+        renewal = self._renewal_label(name)
+        if renewal:
+            draw.text(
+                (36, 50),
+                renewal,
+                fill=(150, 150, 150),
+                font=self._load_font(8),
+                anchor="mt",
+            )
 
         self.update_image_raw(img)
 

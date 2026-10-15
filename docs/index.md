@@ -27,7 +27,9 @@ There are scripts for setting up streamdeck_ui on [Debian/Ubuntu](https://github
 Note you can start streamdeck_ui without showing the configuration user interface as follows:
 
 ```bash
+
 streamdeck -n
+
 ```
 
 ### Command
@@ -35,6 +37,7 @@ streamdeck -n
 Enter a value in the command field to execute a command. For example, `gnome-terminal` will launch a new terminal on Ubuntu/Fedora or `obs` will launch OBS.
 
 #### Examples of commands
+
 >
 > These examples are for Ubuntu using xorg.
 You can use a tool like `xdotool` to interact with other applications.
@@ -42,7 +45,9 @@ You can use a tool like `xdotool` to interact with other applications.
 Find the window with a title starting with `Meet -` and bring it to focus. This helps if you have a Google Meet session on a tab somewhere but you lost it behind another window.
 
 ```bash
+
 xdotool search --name '^Meet - .+$' windowactivate 
+
 ```
 
 > The meeting tab must be active one if you have multiple tabs open, since the window title is set by the currently active tab.
@@ -50,19 +55,25 @@ xdotool search --name '^Meet - .+$' windowactivate
 Find the window with a title starting with `Meet -` and then send `ctrl+d` to it. This has the effect of toggling the mute button in Google Meet.
 
 ```bash
+
 xdotool search --name '^Meet - .+$' windowactivate --sync key ctrl+d
+
 ```
 
 Change the system volume up (or down) by a certain percentage. Assumes you're using PulseAudio/Alsa Mixer.
 
 ```bash
+
 amixer -D pulse sset Master 20%+
+
 ```
 
 If you want you invoke a command that uses shell-script specific things like `&&` or `|`, run it via bash. This command will shift focus to firefox using the `wmctrl`, and then shifts focus to the first tab:
 
 ```bash
+
 bash -c "wmctrl -a firefox  && xdotool key alt+1"
+
 ```
 
 ### Press Keys
@@ -99,7 +110,9 @@ The standard list of keys can be found [at the source](https://pynput.readthedoc
 The `super` key (Windows key) can be problematic on some versions of Linux. Instead of using the Key Press feature, you could use the Command feature as follows. In this example, it will press `Super` and `4`, which launches application number 4 in your favorites (Ubuntu).
 
 ```bash
+
 xdotool key "Super_L+4"
+
 ```
 
 ### Write Text
@@ -111,9 +124,11 @@ press enter during the output.
 #### Examples of writing text
 
 ```bash
+
 Unfortunately that's a hard no.
 Kind regards,
 Joe
+
 ```
 
 ![nope](art/nope.gif)

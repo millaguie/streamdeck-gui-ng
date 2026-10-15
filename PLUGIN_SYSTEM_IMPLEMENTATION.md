@@ -5,6 +5,7 @@ This document provides a comprehensive overview of the plugin system implementat
 ## Overview
 
 The plugin system allows users to extend StreamDeck UI functionality by writing Python scripts that can:
+
 - Monitor external services and APIs
 - Update button displays dynamically
 - Respond to button presses with custom logic
@@ -15,7 +16,8 @@ The plugin system allows users to extend StreamDeck UI functionality by writing 
 
 ### Components
 
-```
+```text
+
 ┌─────────────────────────────────────────────────────────┐
 │                   StreamDeck UI (Host)                  │
 │                                                         │
@@ -46,6 +48,7 @@ The plugin system allows users to extend StreamDeck UI functionality by writing 
 │ │ (User Code)  │ │   │ │ (User Code)  │ │
 │ └──────────────┘ │   │ └──────────────┘ │
 └──────────────────┘   └──────────────────┘
+
 ```
 
 ### Key Design Decisions
@@ -60,31 +63,37 @@ The plugin system allows users to extend StreamDeck UI functionality by writing 
 
 ### Core Plugin System
 
-```
+```text
+
 streamdeck_ui/plugin_system/
 ├── __init__.py                 # Package init
 ├── schema.py                   # Manifest schema and validation
 ├── protocol.py                 # Communication protocol
 ├── base_plugin.py              # Base class for plugins
 └── plugin_manager.py           # Plugin lifecycle management
+
 ```
 
 ### Example Plugin
 
-```
+```text
+
 plugins/example_alertmanager/
 ├── manifest.yaml               # Plugin metadata
 ├── alertmanager_plugin.py      # Plugin implementation
 ├── alertmanager_icon.png       # Plugin icon
 └── README.md                   # Plugin documentation
+
 ```
 
 ### Documentation
 
-```
+```text
+
 PLUGIN_DEVELOPMENT.md           # Complete developer guide
 PLUGIN_SYSTEM_IMPLEMENTATION.md # This file
 README.md                       # Updated with plugin info
+
 ```
 
 ## Implementation Details
@@ -94,6 +103,7 @@ README.md                       # Updated with plugin info
 Defines the plugin metadata and configuration:
 
 **Key Features:**
+
 - Plugin name, version, description, author
 - Entry point (Python script)
 - Lifecycle mode (always_running, on_visible)
@@ -102,6 +112,7 @@ Defines the plugin metadata and configuration:
 - Retry configuration
 
 **Variable Types Supported:**
+
 - `string`, `int`, `float`, `bool`
 - `file_path`, `dir_path`
 - `url`
@@ -109,6 +120,7 @@ Defines the plugin metadata and configuration:
 - `certificate` (special file picker)
 
 **Validation:**
+
 - Required fields check
 - Duplicate variable detection
 - Default/required consistency
@@ -116,13 +128,17 @@ Defines the plugin metadata and configuration:
 ### 2. Communication Protocol (`protocol.py`)
 
 **Message Format:**
-```
+
+```text
+
 [4 bytes: length][N bytes: JSON data]
+
 ```
 
 **Message Types:**
 
 **Host → Plugin:**
+
 - `BUTTON_PRESSED`: Physical button was pressed
 - `BUTTON_RELEASED`: Physical button was released
 - `BUTTON_VISIBLE`: Button page is now visible
@@ -131,6 +147,7 @@ Defines the plugin metadata and configuration:
 - `SHUTDOWN`: Plugin should terminate
 
 **Plugin → Host:**
+
 - `UPDATE_IMAGE_RAW`: Send raw image data (PIL Image as base64)
 - `UPDATE_IMAGE_RENDER`: Send rendering instructions (text, icon, colors)
 - `REQUEST_PAGE_SWITCH`: Request to switch to plugin's page
@@ -139,6 +156,7 @@ Defines the plugin metadata and configuration:
 - `READY`: Plugin initialized successfully
 
 **Bidirectional:**
+
 - `ERROR`: Error occurred
 - `ACK`: Acknowledge message
 
@@ -147,22 +165,26 @@ Defines the plugin metadata and configuration:
 Provides foundation for all plugins:
 
 **Connection Management:**
+
 - `connect()`: Establish Unix socket connection
 - `disconnect()`: Close connection
 - `send_message()`: Send protocol message
 - `receive_message()`: Receive with timeout
 
 **Display Updates:**
+
 - `update_image_raw(image, format)`: Send PIL Image
 - `update_image_render(text, icon, colors, alignment, ...)`: Send render instructions
 
 **Actions:**
+
 - `request_page_switch(duration)`: Request page switch (temporary or permanent)
 - `log(level, message)`: Send log message
 - `send_heartbeat()`: Send alive signal
 - `send_error(error, details)`: Report error
 
 **Abstract Methods (must implement):**
+
 - `on_start()`: Initialization
 - `on_button_pressed()`: Button press handler
 - `on_button_released()`: Button release handler
@@ -171,11 +193,13 @@ Provides foundation for all plugins:
 - `update()`: Periodic update (~10Hz)
 
 **Optional Methods:**
+
 - `on_config_update(config)`: Config change handler
 - `on_shutdown()`: Cleanup handler
 - `on_error(error, details)`: Error handler
 
 **Main Loop:**
+
 - Connects to host
 - Sends READY message
 - Calls `on_start()`
@@ -192,6 +216,7 @@ Provides foundation for all plugins:
 Represents a running plugin for a specific button.
 
 **Responsibilities:**
+
 - Start/stop plugin process
 - Create Unix socket for communication
 - Send messages to plugin
@@ -201,6 +226,7 @@ Represents a running plugin for a specific button.
 - Monitor plugin health
 
 **Key Methods:**
+
 - `start()`: Create socket, spawn process, wait for connection
 - `stop()`: Send shutdown, wait for exit, cleanup
 - `send_button_pressed/released()`: Notify plugin of button events
@@ -210,6 +236,7 @@ Represents a running plugin for a specific button.
 - `is_responsive()`: Check heartbeat (<30s old)
 
 **Communication Thread:**
+
 - Runs in background (`_communication_loop()`)
 - Receives messages from plugin
 - Dispatches to appropriate handlers
@@ -219,12 +246,14 @@ Represents a running plugin for a specific button.
 Manages all plugin instances.
 
 **Responsibilities:**
+
 - Discover plugins in plugins directory
 - Create/remove plugin instances
 - Monitor instance health
 - Restart crashed plugins
 
 **Key Methods:**
+
 - `discover_plugins()`: Scan plugin directory, load manifests
 - `create_instance()`: Create new instance for button
 - `start_instance()`: Start plugin process
@@ -234,6 +263,7 @@ Manages all plugin instances.
 - `monitor_instances()`: Background monitoring (runs in thread)
 
 **Health Monitoring:**
+
 - Checks process alive every 5 seconds
 - Checks heartbeat freshness
 - Retries restart up to `max_retries`
@@ -244,16 +274,20 @@ Manages all plugin instances.
 **StreamDeckServer Extensions:**
 
 **Initialization:**
+
 ```python
+
 def __init__(self):
     # ...existing code...
     plugins_dir = Path.home() / '.streamdeck_ui' / 'plugins'
     self.plugin_manager = PluginManager(plugins_dir)
     self.plugin_manager.discover_plugins()
     # Start monitor thread
+
 ```
 
 **Plugin Management API:**
+
 - `get_button_plugin_id()`: Get plugin ID for button
 - `set_button_plugin_id()`: Set plugin ID for button
 - `get_button_plugin_config()`: Get plugin configuration
@@ -264,6 +298,7 @@ def __init__(self):
 - `detach_plugin_from_button()`: Stop and remove plugin
 
 **Event Handlers:**
+
 - `_handle_plugin_image_update()`: Process image updates from plugin
   - Raw: Save temp file, create ImageFilter, update display
   - Render: Update ButtonState, rebuild filters
@@ -273,22 +308,27 @@ def __init__(self):
 - `_handle_plugin_log_message()`: Log plugin messages
 
 **Notification Methods:**
+
 - `notify_button_press()`: Inform plugin of button press/release
 - `notify_page_change()`: Inform plugins of page visibility changes
 
 ### 6. Model Extensions (`model.py`)
 
 **ButtonState Extended:**
+
 ```python
+
 @dataclass
 class ButtonState:
     # ...existing fields...
     plugin_id: str = ""
     plugin_config: Dict[str, Any] = field(default_factory=dict)
     plugin_can_switch_page: bool = False
+
 ```
 
 These fields are:
+
 - Persisted in config file
 - Used to recreate plugin instances on restart
 - Updated through API methods
@@ -297,7 +337,8 @@ These fields are:
 
 ### Plugin Startup
 
-```
+```text
+
 1. Host creates socket at /tmp/streamdeck_plugin_ABC
 2. Host spawns: python3 plugin.py /tmp/streamdeck_plugin_ABC '{"key":"value"}'
 3. Plugin connects to socket
@@ -305,11 +346,13 @@ These fields are:
 5. Host sends BUTTON_VISIBLE (if applicable)
 6. Plugin calls on_start()
 7. Plugin enters main loop
+
 ```
 
 ### Button Press
 
-```
+```text
+
 1. User presses physical button
 2. StreamDeck library fires callback
 3. Host calls api.notify_button_press(serial, page, button, True)
@@ -318,11 +361,13 @@ These fields are:
 6. Plugin receives message in communication loop
 7. Plugin calls on_button_pressed()
 8. Plugin updates display or performs action
+
 ```
 
 ### Image Update
 
-```
+```text
+
 1. Plugin calls update_image_render(text="Hello", background_color="#FF0000")
 2. Plugin sends UPDATE_IMAGE_RENDER message
 3. Host receives message in PluginInstance communication thread
@@ -331,33 +376,41 @@ These fields are:
 6. API calls _update_button_filters()
 7. DisplayGrid rebuilds filter chain
 8. Image rendered to Stream Deck
+
 ```
 
 ### Page Switch Request
 
-```
+```text
+
 1. Plugin calls request_page_switch(duration=10)
 2. Plugin sends REQUEST_PAGE_SWITCH message
 3. Host receives message
 4. Host checks can_switch_page permission
 5. If allowed: Host calls set_temp_page(serial, page)
 6. After 10s: Host calls restore_previous_page(serial)
+
 ```
 
 ### Plugin Crash
 
-```
+```text
+
 1. Plugin process terminates unexpectedly
 2. Monitor thread detects process not alive
 3. If retry_count < max_retries:
+
    a. Increment retry_count
    b. Wait retry_delay seconds
    c. Call instance.start()
    d. Repeat startup sequence
+
 4. If max retries exceeded:
+
    a. Log error
    b. Mark instance as failed
    c. Button shows last known state
+
 ```
 
 ## Integration Points
@@ -403,21 +456,25 @@ The core plugin system is complete, but UI integration is pending:
 The plugin system integrates with:
 
 **Page System:**
+
 - Plugins receive visibility events on page change
 - Plugins can request page switches
 - Works with temp_switch_page feature
 
 **Button Rendering:**
+
 - Plugins can use existing rendering pipeline
 - Plugins can send raw images
 - Filters work same as manual configuration
 
 **Configuration:**
+
 - Plugin state saved in ~/.streamdeck_ui.json
 - Export/import includes plugin config
 - Backward compatible (old configs work)
 
 **Button Actions:**
+
 - Plugins receive press/release events
 - Compatible with other button actions (can coexist)
 - Plugin updates don't interfere with manual updates
@@ -427,6 +484,7 @@ The plugin system integrates with:
 A complete example demonstrating all features:
 
 **Features:**
+
 - Polls AlertManager API at configurable intervals
 - Displays environment name and alert count
 - Color-codes based on severity (green/orange/red)
@@ -438,20 +496,24 @@ A complete example demonstrating all features:
 - Comprehensive error handling
 
 **Files:**
+
 - `manifest.yaml`: 13 configuration variables
 - `alertmanager_plugin.py`: Full implementation
 - `alertmanager_icon.png`: Custom icon
 - `README.md`: Usage documentation
 
 **Configuration Example:**
+
 ```yaml
-alertmanager_url: https://alertmanager.prod.example.com
+
+alertmanager_url: <https://alertmanager.prod.example.com>
 environment_name: Production
 poll_interval: 30
 flash_duration: 10
 auth_type: basic
 username: admin
 password: ********
+
 ```
 
 ## Security Considerations
@@ -623,6 +685,7 @@ For users upgrading from previous versions:
 ## Conclusion
 
 The plugin system is a powerful extension mechanism that:
+
 - ✅ Maintains stability through process isolation
 - ✅ Provides flexible communication protocol
 - ✅ Offers two display update methods

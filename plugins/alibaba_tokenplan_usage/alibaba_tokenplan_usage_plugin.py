@@ -117,7 +117,12 @@ class AlibabaTokenPlanUsagePlugin(BasePlugin):
         # The sentinel requires a non-empty 'key' in the auth entry for
         # fingerprinting; fall back to the cookie hash when no workspace key
         # is configured so distinct logins still register distinctly.
-        key = self.api_key or f"cookie:{hash(cookie) & 0xFFFFFFFF:08x}"
+        # FNV-1a: hash() is salted per process, so it would register a new
+        # sentinel instance on every plugin restart and thrash the store.
+        fnv = 0xCBF29CE484222325
+        for ch in cookie.encode():
+            fnv = ((fnv ^ ch) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+        key = self.api_key or f"cookie:{fnv:016x}"
         try:
             payload: dict[str, Any] = {
                 "project_name": "streamdeck-alibaba-token-plan",
@@ -190,6 +195,7 @@ class AlibabaTokenPlanUsagePlugin(BasePlugin):
                 "total": meta.get("total_credits"),
                 "remaining": meta.get("remaining_credits"),
                 "reset_ms": reset_ms,
+                "note": meta.get("note"),
             }
             self.error_message = None
             return True
@@ -279,15 +285,33 @@ class AlibabaTokenPlanUsagePlugin(BasePlugin):
             fill_w = int(64 * min(pct, 100) / 100)
             if fill_w > 0:
                 draw.rectangle([5, 39, 4 + fill_w, 47], fill=self._bar_color(pct))
-            rem = self._fmt(c.get("remaining"))
-            tot = self._fmt(c.get("total"))
-            reset = self._fmt_reset(c.get("reset_ms", 0))
-            draw.text(
-                (4, 54),
-                f"{rem}/{tot} Cr {reset}".strip(),
-                fill=(180, 180, 180),
-                font=self._load_font(9),
-            )
+            note = c.get("note")
+            if note:
+                words = note.split()
+                lines, cur = [], ""
+                for w_ in words:
+                    if len(cur) + 1 + len(w_) <= 14:
+                        cur = f"{cur} {w_}".strip()
+                    else:
+                        lines.append(cur); cur = w_
+                if cur:
+                    lines.append(cur)
+                y = 50
+                for ln in lines[:2]:
+                    draw.text(
+                        (36, y), ln, fill=(255, 179, 0), font=self._load_font(9), anchor="ma"
+                    )
+                    y += 11
+            else:
+                rem = self._fmt(c.get("remaining"))
+                tot = self._fmt(c.get("total"))
+                reset = self._fmt_reset(c.get("reset_ms", 0))
+                draw.text(
+                    (4, 54),
+                    f"{rem}/{tot} Cr {reset}".strip(),
+                    fill=(180, 180, 180),
+                    font=self._load_font(9),
+                )
             self.update_image_raw(img)
         except Exception as e:
             self.log(LogLevel.ERROR, f"Display update failed: {e}")

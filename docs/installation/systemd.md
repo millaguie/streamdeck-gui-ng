@@ -7,18 +7,23 @@ Once you have a working streamdeck-gui-ng installation, you can also configure i
 Make a directory where the systemd user configuration will be stored.
 
 ``` bash
+
 mkdir -p $HOME/.local/share/systemd/user/
+
 ```
 
 Create (an empty) configuration file.
 
 ``` bash
+
 touch $HOME/.local/share/systemd/user/streamdeck.service
+
 ```
 
 Use your favorite editor and paste the following content into the `streamdeck.service` file (rembember replace `<yourusername>`):
 
 ```ini
+
 [Unit]
 Description=A Linux compatible UI for the Elgato Stream Deck.
 
@@ -29,13 +34,16 @@ Restart=on-failure
 
 [Install]
 WantedBy=default.target
+
 ```
 
 To make the configuration take effect and install the service into systemd, run the following commands:
 
 ```bash
+
 systemctl --user daemon-reload
 systemctl --user enable streamdeck
+
 ```
 
 > Tip: Before you continue, make sure you are not already running streamdeck-gui-ng. If it's open, click File > Exit. Only one instance of streamdeck-gui-ng can be running at a time.
@@ -43,7 +51,9 @@ systemctl --user enable streamdeck
 You are now all set. To start the service, run the following command:
 
 ```bash
+
 systemctl --user start streamdeck
+
 ```
 
 There are some additional commands that may be useful.
@@ -51,19 +61,25 @@ There are some additional commands that may be useful.
 To see the status of the service, run:
 
 ```bash
+
 systemctl --user status streamdeck
+
 ```
 
 To review the service log file (newest entries at the top) for troubleshooting, run:
 
 ```bash
+
 journalctl --user -r
+
 ```
 
 To stop the service, run:
 
 ```bash
+
 systemctl --user stop streamdeck
+
 ```
 
 ## Installation in virtual environment
@@ -73,20 +89,26 @@ If you have installed streamdeck-gui-ng in a virtual environment, you can still 
 Assume you are in the following directory:
 
 ```bash
+
 /home/johnsmith/streamdeck-gui-ng
+
 ```
 
 You create a virtual environment, called `.venv` and activate it as follows:
 
 ```bash
+
 python3 -m venv .venv
 source .venv/bin/activate
+
 ```
 
 and finally install streamdeck-gui-ng like this:
 
 ```bash
+
 python3 -m pip install streamdeck-gui-ng
+
 ```
 
 > Your virtual environment is now configured and located in `/home/johnsmith/streamdeck-gui-ng/.venv`
@@ -94,7 +116,9 @@ python3 -m pip install streamdeck-gui-ng
 The steps for installing the systemd service is exactly the same. The only difference is you have to point the `ExecStart=` to the streamdeck executable inside the virtual environment, like so:
 
 ```ini
+
 ExecStart=/home/johnsmith/streamdeck-gui-ng/.venv/bin/streamdeck -n
+
 ```
 
 ## Uninstalling
@@ -102,8 +126,10 @@ ExecStart=/home/johnsmith/streamdeck-gui-ng/.venv/bin/streamdeck -n
 The following steps will stop, disable, remove the configuration file and finally reload the settings:
 
 ```bash
+
 systemctl --user stop streamdeck
 systemctl --user disable streamdeck
 rm $HOME/.local/share/systemd/user/streamdeck.service
 systemctl --user daemon-reload
+
 ```

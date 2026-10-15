@@ -36,6 +36,9 @@ TEST_CONFIG_STATE = {
                             "plugin_id": "",
                             "plugin_config": {},
                             "plugin_can_switch_page": False,
+                            "elgato_plugin_id": "",
+                            "elgato_action_id": "",
+                            "elgato_settings": {},
                         }
                     },
                 }

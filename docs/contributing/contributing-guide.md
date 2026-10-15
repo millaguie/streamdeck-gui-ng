@@ -23,7 +23,9 @@ Once you have verified that your system matches the base requirements, you can s
 1. [Fork the project on GitHub](https://github.com/millaguie/streamdeck-gui-ng/fork).
     - Make sure you untick the "copy the main branch only" option. This will ensure you have a full copy of the project to work with.
 2. Clone your fork to your local file system:
-    `git clone https://github.com/$GITHUB_ACCOUNT/streamdeck-gui-ng.git`
+
+    `git clone <https://github.com/$GITHUB_ACCOUNT/streamdeck-gui-ng.git`>
+
 3. `cd streamdeck_ui`
 4. `poetry install`
 

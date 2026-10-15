@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from PIL import Image
 from PIL.ImageQt import toqimage
@@ -33,6 +33,7 @@ from streamdeck_ui.display.display_grid import DisplayGrid
 from streamdeck_ui.display.filter import Filter
 from streamdeck_ui.display.image_filter import ImageFilter
 from streamdeck_ui.display.text_filter import TextFilter
+from streamdeck_ui.elgato_plugin.service import Binding, ElgatoPluginService
 from streamdeck_ui.logger import logger
 from streamdeck_ui.model import ButtonMultiState, ButtonState, DeckState
 from streamdeck_ui.plugin_system.plugin_manager import PluginManager
@@ -114,15 +115,26 @@ class StreamDeckServer:
         self.plugin_monitor_thread = threading.Thread(target=self.plugin_manager.monitor_instances, daemon=True)
         self.plugin_monitor_thread.start()
 
+        # Official format plugins speak the plugin protocol the ecosystem uses. Their WebSocket
+        # server is a Qt object and this class is built before QApplication exists, so the host is
+        # only created in start().
+        self.elgato_plugins = ElgatoPluginService(
+            repaint=self._repaint_official_button, on_settings=self._on_official_plugin_settings
+        )
+
     def shutdown(self) -> None:
         """Shutdown the StreamDeck server and cleanup all resources."""
         logger.info("Shutting down StreamDeck server...")
+
+        logger.info("Stopping official format plugins...")
+        self.elgato_plugins.stop()
 
         # Stop all plugin instances in parallel
         if self.plugin_manager:
             logger.info("Stopping all plugin instances...")
             instance_ids = list(self.plugin_manager.instances.keys())
             if instance_ids:
+
                 def _stop_instance(instance_id):
                     try:
                         self.plugin_manager.stop_instance(instance_id)
@@ -255,6 +267,9 @@ class StreamDeckServer:
         streamdeck.set_key_callback(partial(self._key_change_callback, serial_number))
         self._update_streamdeck_filters(serial_number)
 
+        self.elgato_plugins.deck_opened(serial_number, self._official_device_info(streamdeck, serial_number))
+        self._sync_official_plugins(serial_number)
+
         self.dimmers[serial_number] = Dimmer(
             self.get_display_timeout(serial_number),
             self.get_brightness(serial_number),
@@ -273,9 +288,7 @@ class StreamDeckServer:
         )
 
         # Restore plugins in background so UI is not blocked
-        threading.Thread(
-            target=self._restore_plugins_for_deck, args=(serial_number,), daemon=True
-        ).start()
+        threading.Thread(target=self._restore_plugins_for_deck, args=(serial_number,), daemon=True).start()
 
     def set_default_state(self, serial_number: str, deck_type: str):
         if serial_number in self.state:
@@ -315,6 +328,8 @@ class StreamDeckServer:
         self.display_handlers[serial_number].initialize_page(new_page_index)
         self.display_handlers[serial_number].synchronize()
 
+        self._sync_official_plugins(serial_number)
+
         return new_page_index
 
     @staticmethod
@@ -342,6 +357,8 @@ class StreamDeckServer:
         del self.state[serial_number].buttons[page]
         self.display_handlers[serial_number].remove_page(page)
 
+        self._sync_official_plugins(serial_number)
+
     def _on_steam_deck_detached(self, deck_id: str):
         serial_number = self.decks_map_id_to_serial.get(deck_id, None)
         if serial_number:
@@ -349,6 +366,8 @@ class StreamDeckServer:
             self.plugevents.detached.emit(serial_number)
 
     def _cleanup(self, deck_id: str, serial_number: str):
+        self.elgato_plugins.deck_closed(serial_number)
+
         display_grid = self.display_handlers[serial_number]
         display_grid.stop()
         del self.display_handlers[serial_number]
@@ -370,6 +389,11 @@ class StreamDeckServer:
         del self.decks_map_id_to_serial[deck_id]
 
     def start(self):
+        try:
+            self.elgato_plugins.start()
+        except Exception as error:
+            logger.error(f"Official format plugin host is not running: {error}")
+
         if not self.monitor:
             self.monitor = StreamDeckMonitor(self.lock, self._on_steam_deck_attached, self._on_steam_deck_detached)
         self.monitor.start()
@@ -384,7 +408,9 @@ class StreamDeckServer:
     def _button_state(self, serial_number: str, page: int, button: int, state: int | None = None) -> ButtonState:
         multi_state = self._button_multi_state(serial_number, page, button)
         # if no state is specified, use the current state
-        choose_state = state or multi_state.state
+        # state 0 is a real state, not "no preference": falling back on `or` made the first
+        # state's tab read and write whichever state the button happened to be showing.
+        choose_state = multi_state.state if state is None else state
         # if the choose state is not in the states dict, add it
         multi_state.states[choose_state] = multi_state.states.setdefault(choose_state, ButtonState())
         return multi_state.states[choose_state]
@@ -752,6 +778,8 @@ class StreamDeckServer:
         # Wait for at least one cycle
         display_handler.synchronize()
 
+        self._sync_official_plugins(serial_number)
+
     def set_temp_page(self, serial_number: str, page: int) -> None:
         """Sets a temporary page, storing the current page to return to on release"""
         if page not in self.get_pages(serial_number):
@@ -765,6 +793,8 @@ class StreamDeckServer:
         display_handler.set_page(page)
         display_handler.synchronize()
 
+        self._sync_official_plugins(serial_number)
+
     def restore_previous_page(self, serial_number: str) -> None:
         """Restores the previous page after temporary page switch"""
         previous_page = self.state[serial_number].previous_page
@@ -775,6 +805,8 @@ class StreamDeckServer:
             display_handler = self.display_handlers[serial_number]
             display_handler.set_page(previous_page)
             display_handler.synchronize()
+
+            self._sync_official_plugins(serial_number)
 
     def _update_streamdeck_filters(self, serial_number: str):
         """Updates the filters for all the StreamDeck buttons.
@@ -817,10 +849,16 @@ class StreamDeckServer:
         background_color = button_settings.background_color or DEFAULT_BACKGROUND_COLOR
         filters.append(BackgroundColorFilter(background_color))
 
-        if button_settings.icon:
-            filters.append(ImageFilter(button_settings.icon))
+        # An official format plugin that owns this key decides what it shows, and the display
+        # pipeline stays the only thing that ever writes to the hardware.
+        overlay = self.elgato_plugins.overlay_for(serial_number, page, button)
+        icon = overlay.image if overlay is not None and overlay.image else button_settings.icon
+        text = overlay.title if overlay is not None and overlay.title is not None else button_settings.text
 
-        if button_settings.text:
+        if icon:
+            filters.append(ImageFilter(icon))
+
+        if text:
             font_size = int(button_settings.font_size) if button_settings.font_size else DEFAULT_FONT_SIZE
             font_color = button_settings.font_color or DEFAULT_FONT_COLOR
             font = button_settings.font or DEFAULT_FONT
@@ -830,7 +868,7 @@ class StreamDeckServer:
             # add fallback font logic
             filters.append(
                 TextFilter(
-                    button_settings.text,
+                    text,
                     font,
                     font_size,
                     font_color,
@@ -841,9 +879,114 @@ class StreamDeckServer:
 
         display_handler.replace(page, button, filters)
 
+    # Official format plugin methods
+
+    def _official_device_info(self, streamdeck, serial_number: str) -> dict:
+        """Describes the deck the way the official protocol expects it."""
+        columns, rows = streamdeck.key_layout()
+        try:
+            firmware = streamdeck.get_firmware_version()
+        except Exception:
+            firmware = ""
+        return {
+            "name": streamdeck.deck_type(),
+            "id": serial_number,
+            "firmware": str(firmware),
+            "profile": "",
+            "size": {"columns": columns, "rows": rows},
+        }
+
+    def _official_bindings(self, serial_number: str, page: int) -> list[Binding]:
+        bindings: list[Binding] = []
+        for button in self.state[serial_number].buttons.get(page, {}):
+            button_settings = self._button_state(serial_number, page, button)
+            if not button_settings.elgato_plugin_id or not button_settings.elgato_action_id:
+                continue
+            bindings.append(
+                Binding(
+                    button=button,
+                    plugin_uuid=button_settings.elgato_plugin_id,
+                    action_uuid=button_settings.elgato_action_id,
+                    settings=button_settings.elgato_settings,
+                )
+            )
+        return bindings
+
+    def _sync_official_plugins(self, serial_number: str) -> None:
+        """Reconciles running plugin instances with the page that is now shown."""
+        if serial_number not in self.decks_by_serial:
+            return
+        page = self.get_page(serial_number)
+        self.elgato_plugins.sync_page(serial_number, page, self._official_bindings(serial_number, page))
+
+    def _repaint_official_button(self, serial_number: str, page: int, button: int) -> None:
+        if serial_number not in self.display_handlers:
+            return
+        self._update_button_filters(serial_number, page, button)
+        self.display_handlers[serial_number].synchronize()
+
+    def get_official_plugin_actions(self) -> list[tuple[str, str, str]]:
+        """Every official format action the user can put on a button."""
+        return self.elgato_plugins.button_options()
+
+    def get_button_official_binding(
+        self, serial_number: str, page: int, button: int, state: Optional[int] = None
+    ) -> tuple[str, str]:
+        """The official action on a button, or on one button state when a state is given."""
+        button_settings = self._button_state(serial_number, page, button, state)
+        return button_settings.elgato_plugin_id, button_settings.elgato_action_id
+
+    def get_button_official_settings(self, serial_number: str, page: int, button: int) -> dict[str, Any]:
+        button_settings = self._button_state(serial_number, page, button)
+        return button_settings.elgato_settings
+
+    def set_button_official_binding(
+        self,
+        serial_number: str,
+        page: int,
+        button: int,
+        plugin_uuid: str,
+        action_uuid: str,
+        state: Optional[int] = None,
+    ) -> None:
+        button_settings = self._button_state(serial_number, page, button, state)
+        if (button_settings.elgato_plugin_id, button_settings.elgato_action_id) == (plugin_uuid, action_uuid):
+            return
+        button_settings.elgato_plugin_id = plugin_uuid
+        button_settings.elgato_action_id = action_uuid
+        # A different instance starts with its own settings, not with the ones the previous
+        # instance left behind.
+        button_settings.elgato_settings = {}
+        self._save_state()
+        self._sync_official_plugins(serial_number)
+
+    def set_button_official_settings(
+        self, serial_number: str, page: int, button: int, settings: dict[str, Any]
+    ) -> None:
+        button_settings = self._button_state(serial_number, page, button)
+        button_settings.elgato_settings = settings
+        self._save_state()
+        self._sync_official_plugins(serial_number)
+
+    def _on_official_plugin_settings(
+        self, serial_number: str, page: int, button: int, settings: dict[str, Any]
+    ) -> None:
+        """Remembers what a plugin asked for its own button.
+
+        This deliberately does not sync the page again: doing that would unplace and relaunch
+        the very plugin that just wrote the settings.
+        """
+        button_settings = self._button_state(serial_number, page, button)
+        if button_settings.elgato_settings == settings:
+            return
+        button_settings.elgato_settings = settings
+        self._save_state()
+
     # Plugin API methods
 
-    def _restore_single_plugin(self, serial_number: str, page: int, button: int, state_id: int, button_state: ButtonState) -> None:
+    def _restore_single_plugin(
+        self, serial_number: str, page: int, button: int, state_id: int, button_state: ButtonState
+    ) -> None:
         """Restore a single plugin instance. Designed to run in a thread pool."""
         assert self.plugin_manager is not None
         try:
@@ -1056,14 +1199,10 @@ class StreamDeckServer:
         :meth:`move_button_to_page`, but in place (no move), and additionally
         stops/detaches a plugin if one is attached.
         """
-        if self.plugin_manager is not None and self.get_button_plugin_id(
-            serial_number, page, button
-        ):
+        if self.plugin_manager is not None and self.get_button_plugin_id(serial_number, page, button):
             self.detach_plugin_from_button(serial_number, page, button)
 
-        self.state[serial_number].buttons[page][button] = ButtonMultiState(
-            state=0, states={0: ButtonState()}
-        )
+        self.state[serial_number].buttons[page][button] = ButtonMultiState(state=0, states={0: ButtonState()})
         self._save_state()
         self._update_button_filters(serial_number, page, button)
         self.display_handlers[serial_number].synchronize()
@@ -1172,6 +1311,8 @@ class StreamDeckServer:
             button: Button number
             pressed: True if pressed, False if released
         """
+        self.elgato_plugins.key_pressed(serial_number, button, pressed)
+
         assert self.plugin_manager is not None
         instances = self.plugin_manager.get_instances_for_button(serial_number, page, button)
         for instance in instances:

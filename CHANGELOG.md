@@ -1,14 +1,16 @@
 # This file is no longer in use
 
 This file is no longer in use and is kept only for historical reasons.
-All changes (including pre-releases) are now visible in the github release page [here](https://github.com/streamdeck-linux-gui/streamdeck-linux-gui/releases)
+All changes (including pre-releases) are now visible in [the GitHub release page](https://github.com/streamdeck-linux-gui/streamdeck-linux-gui/releases).
 
 # Upgrade
 
 To upgrade to the latest version, run:
 
 ```bash
+
 python -m pip install streamdeck-ui --user --upgrade
+
 ```
 
 > Note you may have to use `python3`, `python3.8` etc. depending on your operating system and Python version.

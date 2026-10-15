@@ -59,7 +59,7 @@ All credit to the original authors and the many contributors to both previous pr
 
 Communication with the Stream Deck is powered by the [Python Elgato Stream Deck Library](https://github.com/abcminiuser/python-elgato-streamdeck#python-elgato-stream-deck-library).
 
-Documentation is available at [https://millaguie.github.io/streamdeck-gui-ng/](https://millaguie.github.io/streamdeck-gui-ng/)
+Documentation is available at [<https://millaguie.github.io/streamdeck-gui-ng/](https://millaguie.github.io/streamdeck-gui-ng/>)
 
 ## Installation Guides
 
@@ -93,6 +93,7 @@ StreamDeck UI now supports a powerful plugin system that allows you to extend fu
 The repository includes two production-ready example plugins:
 
 **Prometheus AlertManager Monitor** ([plugins/alertmanager/](plugins/alertmanager/)):
+
 - Monitors AlertManager for active alerts
 - Updates button display with alert count
 - Changes color based on severity
@@ -101,6 +102,7 @@ The repository includes two production-ready example plugins:
 - Supports multiple authentication methods
 
 **Arch Linux Update Monitor** ([plugins/arch_update/](plugins/arch_update/)):
+
 - Monitors system updates (pacman, AUR, Flatpak)
 - Shows update count with color coding
 - Displays breakdown by source (P:pacman, A:AUR, F:Flatpak)

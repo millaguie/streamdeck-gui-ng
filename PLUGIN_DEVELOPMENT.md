@@ -32,7 +32,8 @@ Each plugin runs as a separate process and communicates with the main StreamDeck
 
 ### Communication Model
 
-```
+```text
+
 ┌─────────────────────────┐
 │   StreamDeck UI (Host)  │
 │                         │
@@ -52,17 +53,20 @@ Each plugin runs as a separate process and communicates with the main StreamDeck
 │  │  (Your Class)    │   │
 │  └──────────────────┘   │
 └─────────────────────────┘
+
 ```
 
 ### Message Flow
 
 **Host → Plugin:**
+
 - Button pressed/released
 - Button visible/hidden (page changes)
 - Configuration updates
 - Shutdown requests
 
 **Plugin → Host:**
+
 - Update button image (raw data or rendering instructions)
 - Request page switch
 - Log messages
@@ -75,17 +79,21 @@ Each plugin runs as a separate process and communicates with the main StreamDeck
 Create a new directory in `~/.streamdeck_ui/plugins/` for your plugin:
 
 ```bash
+
 mkdir -p ~/.streamdeck_ui/plugins/my_plugin
 cd ~/.streamdeck_ui/plugins/my_plugin
+
 ```
 
 ### 2. Required Files
 
 Every plugin needs at minimum:
+
 - `manifest.yaml` - Plugin metadata and configuration
 - `<entry_point>.py` - Your plugin implementation
 
 Optional files:
+
 - `icon.png` - Plugin icon (shown in UI)
 - `README.md` - Plugin documentation
 - Any additional Python modules or resources
@@ -97,6 +105,7 @@ The `manifest.yaml` file describes your plugin and its configuration variables.
 ### Basic Structure
 
 ```yaml
+
 name: My Plugin Name
 version: 1.0.0
 description: A brief description of what your plugin does
@@ -105,45 +114,56 @@ entry_point: my_plugin.py  # Main Python script (relative to plugin directory)
 license: MIT
 
 # Lifecycle configuration
+
 lifecycle_mode: always_running  # or: on_visible
 can_switch_page: true  # Can the plugin request page switches?
 
 # Error handling
+
 max_retries: 3  # How many times to restart on crash
 retry_delay: 5  # Seconds to wait between restart attempts
 
 # Configuration variables
+
 variables:
+
   - name: api_url
+
     type: url
     description: API endpoint to monitor
     required: true
 
   - name: poll_interval
+
     type: int
     description: Polling interval in seconds
     required: false
     default: 30
 
   - name: api_key
+
     type: password
     description: API authentication key
     required: true
 
 # Optional metadata
-homepage: https://github.com/yourname/your-plugin
+
+homepage: <https://github.com/yourname/your-plugin>
 icon: icon.png  # Path relative to plugin directory
+
 ```
 
 ### Lifecycle Modes
 
 **`always_running`** (default):
+
 - Plugin starts when StreamDeck UI starts
 - Runs continuously in background
 - Receives all button events regardless of page
 - Best for: Monitoring services, polling APIs, continuous updates
 
 **`on_visible`**:
+
 - Plugin starts only when its button's page is visible
 - Stops when page changes away
 - Best for: On-demand actions, resource-intensive operations
@@ -163,11 +183,14 @@ icon: icon.png  # Path relative to plugin directory
 ### Variable Properties
 
 ```yaml
+
 - name: variable_name      # Internal name (used in code)
+
   type: string             # Data type
   description: Help text   # Shown to user in UI
   required: true           # Must be provided?
   default: "value"         # Default value (optional)
+
 ```
 
 ## Plugin Implementation
@@ -175,16 +198,17 @@ icon: icon.png  # Path relative to plugin directory
 ### Basic Plugin Structure
 
 ```python
+
 #!/usr/bin/env python3
 import sys
 from pathlib import Path
 from typing import Any, Dict
 
 # Import base plugin class
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from streamdeck_ui.plugin_system.base_plugin import BasePlugin
 from streamdeck_ui.plugin_system.protocol import LogLevel
-
 
 class MyPlugin(BasePlugin):
     """My custom StreamDeck plugin."""
@@ -256,7 +280,6 @@ class MyPlugin(BasePlugin):
         except Exception as e:
             self.log(LogLevel.ERROR, f"API poll failed: {e}")
 
-
 def main():
     """Entry point."""
     import json
@@ -271,9 +294,9 @@ def main():
     plugin = MyPlugin(socket_path, config)
     plugin.run()
 
-
 if __name__ == '__main__':
     main()
+
 ```
 
 ### Required Methods
@@ -281,6 +304,7 @@ if __name__ == '__main__':
 You **must** implement these abstract methods:
 
 ```python
+
 def on_start(self) -> None:
     """Initialization logic."""
     pass
@@ -304,6 +328,7 @@ def on_button_hidden(self) -> None:
 def update(self) -> None:
     """Periodic update (called ~10 times per second)."""
     pass
+
 ```
 
 ### Optional Methods
@@ -311,6 +336,7 @@ def update(self) -> None:
 These have default implementations but can be overridden:
 
 ```python
+
 def on_config_update(self, config: Dict[str, Any]) -> None:
     """Handle configuration changes."""
     pass
@@ -322,6 +348,7 @@ def on_shutdown(self) -> None:
 def on_error(self, error: str, details: Optional[str] = None) -> None:
     """Handle error messages from host."""
     pass
+
 ```
 
 ## Communication Protocol
@@ -329,10 +356,12 @@ def on_error(self, error: str, details: Optional[str] = None) -> None:
 ### Sending Log Messages
 
 ```python
+
 self.log(LogLevel.DEBUG, "Debug message")
 self.log(LogLevel.INFO, "Info message")
 self.log(LogLevel.WARNING, "Warning message")
 self.log(LogLevel.ERROR, "Error message")
+
 ```
 
 ### Sending Heartbeats
@@ -340,13 +369,17 @@ self.log(LogLevel.ERROR, "Error message")
 Heartbeats are sent automatically every 5 seconds, but you can send manual heartbeats:
 
 ```python
+
 self.send_heartbeat()
+
 ```
 
 ### Sending Errors
 
 ```python
+
 self.send_error("Something went wrong", details="Stack trace or details here")
+
 ```
 
 ## Updating Button Display
@@ -356,6 +389,7 @@ self.send_error("Something went wrong", details="Stack trace or details here")
 Use the built-in rendering pipeline:
 
 ```python
+
 self.update_image_render(
     text="Hello\nWorld",                    # Multi-line text
     icon="/path/to/icon.png",               # Icon path
@@ -365,9 +399,11 @@ self.update_image_render(
     text_vertical_align="middle",           # top, middle-top, middle, middle-bottom, bottom
     text_horizontal_align="center"          # left, center, right
 )
+
 ```
 
 **Advantages:**
+
 - Uses StreamDeck UI's built-in rendering
 - Consistent with other buttons
 - Efficient (no image encoding)
@@ -378,23 +414,29 @@ self.update_image_render(
 Send a PIL Image directly:
 
 ```python
+
 from PIL import Image, ImageDraw
 
 # Create custom image
+
 img = Image.new('RGB', (72, 72), color='blue')
 draw = ImageDraw.Draw(img)
 draw.text((10, 30), "Custom", fill='white')
 
 # Send to display
+
 self.update_image_raw(img, format="PNG")
+
 ```
 
 **Advantages:**
+
 - Full control over rendering
 - Can create animations
 - Can use custom graphics libraries
 
 **Disadvantages:**
+
 - More CPU intensive
 - Larger data transfer
 - Need to handle image sizing
@@ -404,6 +446,7 @@ self.update_image_raw(img, format="PNG")
 For animations, repeatedly call `update_image_render()` or `update_image_raw()` in your `update()` method:
 
 ```python
+
 def update(self) -> None:
     import time
     import math
@@ -417,6 +460,7 @@ def update(self) -> None:
         text="Pulsing",
         background_color=color
     )
+
 ```
 
 ## Page Switching
@@ -424,14 +468,19 @@ def update(self) -> None:
 If your plugin needs to show important notifications, it can request a page switch:
 
 ```python
+
 # Temporary page switch (returns after duration)
+
 self.request_page_switch(duration=10)  # Show for 10 seconds
 
 # Permanent page switch
+
 self.request_page_switch(duration=None)
+
 ```
 
 **Important:**
+
 - Set `can_switch_page: true` in manifest
 - User must grant permission in UI when configuring
 - Use sparingly to avoid disrupting user workflow
@@ -460,6 +509,7 @@ self.request_page_switch(duration=None)
 ### Crash Recovery
 
 If your plugin crashes:
+
 1. Host detects process termination
 2. If `retry_count < max_retries`:
    - Wait `retry_delay` seconds
@@ -472,6 +522,7 @@ If your plugin crashes:
 ### Best Practices for Stability
 
 ```python
+
 def update(self) -> None:
     """Wrap all operations in try-except."""
     try:
@@ -482,6 +533,7 @@ def update(self) -> None:
         self.log(LogLevel.ERROR, f"Update failed: {e}")
         # Optionally inform host
         self.send_error(str(e))
+
 ```
 
 ## Best Practices
@@ -489,6 +541,7 @@ def update(self) -> None:
 ### 1. Handle Configuration Gracefully
 
 ```python
+
 def __init__(self, socket_path: str, config: Dict[str, Any]):
     super().__init__(socket_path, config)
 
@@ -499,11 +552,13 @@ def __init__(self, socket_path: str, config: Dict[str, Any]):
     # Validate required config
     if not self.api_url:
         self.log(LogLevel.ERROR, "api_url is required!")
+
 ```
 
 ### 2. Use Appropriate Polling Intervals
 
 ```python
+
 def update(self) -> None:
     # Don't poll too frequently
     if time.time() - self.last_check < self.interval:
@@ -511,11 +566,13 @@ def update(self) -> None:
 
     self.last_check = time.time()
     self._check_status()
+
 ```
 
 ### 3. Handle Network Errors
 
 ```python
+
 def _fetch_data(self):
     try:
         response = requests.get(self.url, timeout=10)
@@ -527,11 +584,13 @@ def _fetch_data(self):
     except requests.RequestException as e:
         self.log(LogLevel.ERROR, f"Request failed: {e}")
         return None
+
 ```
 
 ### 4. Cache Data When Possible
 
 ```python
+
 def __init__(self, socket_path, config):
     super().__init__(socket_path, config)
     self._cache = None
@@ -547,11 +606,13 @@ def _get_data(self):
     self._cache = self._fetch_from_api()
     self._cache_time = now
     return self._cache
+
 ```
 
 ### 5. Provide User Feedback
 
 ```python
+
 def on_start(self):
     # Show loading state
     self.update_image_render(text="Loading...", background_color="#666666")
@@ -564,11 +625,13 @@ def on_start(self):
         self.update_image_render(text="Ready", background_color="#00AA00")
     else:
         self.update_image_render(text="Error", background_color="#AA0000")
+
 ```
 
 ### 6. Clean Up Resources
 
 ```python
+
 def on_shutdown(self):
     """Clean up before exit."""
     # Close connections
@@ -580,6 +643,7 @@ def on_shutdown(self):
     # etc.
 
     self.log(LogLevel.INFO, "Plugin shutdown complete")
+
 ```
 
 ## Example Plugin
@@ -600,9 +664,12 @@ See [plugins/example_alertmanager/](plugins/example_alertmanager/) for a complet
 ### Manual Testing
 
 1. **Install Your Plugin:**
+
    ```bash
+
    mkdir -p ~/.streamdeck_ui/plugins/my_plugin
    cp manifest.yaml my_plugin.py ~/.streamdeck_ui/plugins/my_plugin/
+
    ```
 
 2. **Restart StreamDeck UI** or reload plugins from the UI
@@ -624,15 +691,20 @@ See [plugins/example_alertmanager/](plugins/example_alertmanager/) for a complet
 View plugin logs:
 
 ```bash
+
 # StreamDeck UI logs include plugin messages
+
 tail -f ~/.streamdeck_ui.log
+
 ```
 
 Add debug logging to your plugin:
 
 ```python
+
 def update(self):
     self.log(LogLevel.DEBUG, f"Update called, state={self.state}")
+
 ```
 
 ### Unit Testing
@@ -640,14 +712,16 @@ def update(self):
 Create a test that runs your plugin without the host:
 
 ```python
+
 # test_my_plugin.py
+
 import json
 import tempfile
 from my_plugin import MyPlugin
 
 def test_plugin():
     config = {
-        'api_url': 'http://localhost:8080',
+        'api_url': '<http://localhost:8080',>
         'poll_interval': 5
     }
 
@@ -659,22 +733,26 @@ def test_plugin():
         plugin.on_start()
         plugin.on_button_pressed()
         # etc.
+
 ```
 
 ### Common Issues
 
 **Plugin doesn't start:**
+
 - Check Python path and imports
 - Verify all dependencies are installed
 - Check manifest.yaml syntax
 - Look at StreamDeck UI logs
 
 **Button doesn't update:**
+
 - Verify `update_image_render()` or `update_image_raw()` is called
 - Check that rendering instructions are valid
 - Ensure plugin is connected (check logs)
 
 **Config not loading:**
+
 - Verify variable names match manifest
 - Check types match (int vs string)
 - Ensure required variables are provided
@@ -710,7 +788,7 @@ When ready to share your plugin:
 
 - Check the example plugin: `plugins/example_alertmanager/`
 - Read the source code: `streamdeck_ui/plugin_system/`
-- Ask on GitHub Issues: https://github.com/streamdeck-linux-gui/streamdeck-linux-gui/issues
+- Ask on GitHub Issues: <https://github.com/streamdeck-linux-gui/streamdeck-linux-gui/issues>
 - Join the community discussions
 
 Happy plugin development! 🚀
