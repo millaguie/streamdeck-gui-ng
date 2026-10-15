@@ -3,9 +3,9 @@ import json
 import pytest
 
 from streamdeck_ui.elgato_plugin.manifest import (
-    ManifestError,
     PLATFORM_LINUX,
     PLATFORM_MAC,
+    ManifestError,
     discover_plugin_directories,
     load_plugin_manifest,
 )

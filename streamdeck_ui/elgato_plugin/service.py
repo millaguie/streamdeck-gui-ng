@@ -14,12 +14,12 @@ Three rules shape this module:
   thread that owns the sockets.
 """
 
-from dataclasses import dataclass, field
 import json
 import logging
 import os
-from pathlib import Path
 import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
 
 from PySide6.QtCore import QObject, Qt, Signal
@@ -84,7 +84,7 @@ class Overlay:
 class _Bridge(QObject):
     """Carries work onto the thread that owns the plugin sockets."""
 
-    work = Signal(str, "QVariantMap")
+    work = Signal(str, "QVariantMap")  # type: ignore[arg-type]
 
     def __init__(self, service: "ElgatoPluginService"):
         super().__init__()
@@ -339,6 +339,8 @@ class ElgatoPluginService:
         context = self._contexts.pop(ref, None)
         self._signatures.pop(ref, None)
         if context is None:
+            return
+        if self.runtime is None:
             return
         self.runtime.unplace(context)
         self.overlays.get(ref.serial, {}).pop(ref.button, None)

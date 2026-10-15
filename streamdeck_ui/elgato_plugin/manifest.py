@@ -7,8 +7,8 @@ Plenty of bundles declare ``OS`` entries for mac and windows only. On Linux that
 reason to refuse a plugin, so platform filtering is opt in.
 """
 
-from dataclasses import dataclass, field
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 

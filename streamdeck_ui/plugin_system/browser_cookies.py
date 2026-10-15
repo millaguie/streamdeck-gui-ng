@@ -45,8 +45,8 @@ _FIREFOX_ROOTS: tuple[Path, ...] = (Path.home() / ".mozilla" / "firefox",)
 # Default cookie-store paths.  Plugins can override via the ``browser``
 # config option, but ``auto`` walks this list.
 _CHROMIUM_PROFILES: dict[str, Path] = {
-    "chrome":   Path.home() / ".config" / "google-chrome" / "Default" / "Cookies",
-    "brave":    Path.home() / ".config" / "BraveSoftware" / "Brave-Browser" / "Default" / "Cookies",
+    "chrome": Path.home() / ".config" / "google-chrome" / "Default" / "Cookies",
+    "brave": Path.home() / ".config" / "BraveSoftware" / "Brave-Browser" / "Default" / "Cookies",
     "chromium": Path.home() / ".config" / "chromium" / "Default" / "Cookies",
 }
 
@@ -65,6 +65,7 @@ class CookieError(RuntimeError):
 
 
 # --------------------------------------------------------------- sqlite helper
+
 
 def _query_sqlite_copy(db_path: Path, query: str, params: tuple) -> list[tuple]:
     """Copy ``db_path`` to tmp, then run ``query``.  The copy step matters:
@@ -86,6 +87,7 @@ def _query_sqlite_copy(db_path: Path, query: str, params: tuple) -> list[tuple]:
 
 
 # --------------------------------------------------------------------- firefox
+
 
 def _firefox_profile_paths() -> list[Path]:
     out: list[Path] = []
@@ -126,7 +128,8 @@ def _firefox_cookies(domain: str) -> dict[str, str]:
         try:
             rows = _query_sqlite_copy(
                 db,
-                f"SELECT name, value FROM moz_cookies WHERE host IN ({placeholders})",
+                # nosec B608 - the f-string only builds "?" placeholders; values stay bound
+                f"SELECT name, value FROM moz_cookies WHERE host IN ({placeholders})",  # nosec B608
                 tuple(keys),
             )
         except sqlite3.DatabaseError:
@@ -138,12 +141,15 @@ def _firefox_cookies(domain: str) -> dict[str, str]:
 
 # ----------------------------------------------------------------- chromium
 
+
 def _chromium_password(browser: str) -> bytes:
     app = _KEYRING_APPS.get(browser, browser)
     try:
         result = subprocess.run(
             ["secret-tool", "lookup", "application", app],
-            capture_output=True, timeout=5, check=False,
+            capture_output=True,
+            timeout=5,
+            check=False,
         )
         if result.returncode == 0 and result.stdout:
             return result.stdout.rstrip(b"\n")
@@ -172,7 +178,7 @@ def _chromium_decrypt(encrypted: bytes, password: bytes) -> str:
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
     kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA1(),
+        algorithm=hashes.SHA1(),  # nosec B303 - Chromium's fixed KDF for the cookie key, not our choice
         length=_CHROMIUM_KEY_LEN,
         salt=_CHROMIUM_SALT,
         iterations=1,
@@ -204,8 +210,8 @@ def _chromium_cookies(browser: str, domain: str) -> dict[str, str]:
     try:
         rows = _query_sqlite_copy(
             db_path,
-            f"SELECT name, encrypted_value FROM cookies "
-            f"WHERE host_key IN ({placeholders})",
+            # nosec B608 - the f-string only builds "?" placeholders; values stay bound
+            f"SELECT name, encrypted_value FROM cookies " f"WHERE host_key IN ({placeholders})",  # nosec B608
             tuple(keys),
         )
     except sqlite3.DatabaseError:
@@ -223,6 +229,7 @@ def _chromium_cookies(browser: str, domain: str) -> dict[str, str]:
 
 
 # --------------------------------------------------------------------- public
+
 
 def list_cookies(domain: str, browser: str = "auto") -> dict[str, str]:
     """Return ``{cookie_name: value}`` for ``domain`` from the chosen browser.

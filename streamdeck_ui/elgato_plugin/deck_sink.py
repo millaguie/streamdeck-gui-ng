@@ -5,9 +5,9 @@ Plugins send images as PNG/JPEG bytes already decoded from their data URL, so we
 to convert them to whatever the deck wants and hand them over.
 """
 
-from io import BytesIO
 import logging
 import webbrowser
+from io import BytesIO
 from typing import Callable, Optional
 
 from PIL import Image

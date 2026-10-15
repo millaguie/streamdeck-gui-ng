@@ -9,18 +9,13 @@ Everything that touches hardware or configuration goes through a sink object, so
 testable without a deck attached.
 """
 
-from dataclasses import dataclass, field
 import base64
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from streamdeck_ui.elgato_plugin.launcher import (
-    PluginProcess,
-    app_info,
-    launch_plugin,
-    new_connection_uuid,
-)
+from streamdeck_ui.elgato_plugin.launcher import PluginProcess, app_info, launch_plugin, new_connection_uuid
 from streamdeck_ui.elgato_plugin.manifest import (
     PLATFORM_LINUX,
     PluginManifest,

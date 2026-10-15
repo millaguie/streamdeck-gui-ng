@@ -3,7 +3,6 @@ import importlib.util
 import sys
 
 import pytest
-
 from StreamDeck.Devices.StreamDeckMini import StreamDeckMini
 from StreamDeck.Devices.StreamDeckOriginal import StreamDeckOriginal
 from StreamDeck.Devices.StreamDeckOriginalV2 import StreamDeckOriginalV2
@@ -17,7 +16,6 @@ from streamdeck_ui.device_detection import (
     normalize_product_string,
     physical_port,
 )
-
 from tests.common import FakeTransport, FakeTransportDevice
 
 

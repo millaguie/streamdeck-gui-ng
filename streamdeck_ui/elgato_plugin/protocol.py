@@ -6,9 +6,9 @@ against the traffic a bundle produces while it talks to this host. Where the pro
 detail open, the choice made here is called out in a comment.
 """
 
-from dataclasses import dataclass, field
 import json
 import re
+from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 REGISTER_PLUGIN = "registerPlugin"
@@ -152,7 +152,7 @@ class ElgatoProtocol:
         self._log = logger or (lambda *args: None)
         self.connections: dict[str, Connection] = {}
         self.contexts: dict[str, ContextBinding] = {}
-        self.global_settings: dict[str[str, Any]] = {}
+        self.global_settings: dict[str, dict[str, Any]] = {}
 
     def close(self, connection_id: str) -> None:
         """Forgets everything known about a peer that went away."""

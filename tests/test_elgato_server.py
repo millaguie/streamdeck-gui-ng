@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from PySide6.QtCore import QEventLoop, QTimer, QUrl
 from PySide6.QtNetwork import QAbstractSocket
 from PySide6.QtWebSockets import QWebSocket

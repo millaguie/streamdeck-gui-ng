@@ -18,7 +18,7 @@ class FakeInfo:
     def __init__(self):
         self.text = ""
 
-    def setText(self, value):
+    def setText(self, value):  # noqa: N802 - mirrors the Qt label API the code under test calls
         self.text = value
 
 

@@ -4,9 +4,9 @@ This is the transport only; every decision about what a message means lives in
 :mod:`streamdeck_ui.elgato_plugin.protocol`.
 """
 
-from itertools import count
 import json
 import logging
+from itertools import count
 
 from PySide6.QtCore import QObject, Slot
 from PySide6.QtNetwork import QHostAddress

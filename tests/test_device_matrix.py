@@ -9,7 +9,6 @@ import importlib.util
 import threading
 
 import pytest
-
 from StreamDeck.Devices.StreamDeck import StreamDeck
 from StreamDeck.Devices.StreamDeckMini import StreamDeckMini
 from StreamDeck.Devices.StreamDeckNeo import StreamDeckNeo
@@ -21,7 +20,6 @@ from StreamDeck.Devices.StreamDeckXL import StreamDeckXL
 
 from streamdeck_ui.device_detection import MODEL_BY_PRODUCT_ID, detect
 from streamdeck_ui.display.display_grid import DisplayGrid
-
 from tests.common import FakeTransport, FakeTransportDevice
 
 

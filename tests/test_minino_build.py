@@ -10,6 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "plugins"))
 
 import build_minino  # noqa: E402
+
 from streamdeck_ui.elgato_plugin.manifest import load_plugin_manifest  # noqa: E402
 
 

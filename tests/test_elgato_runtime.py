@@ -11,13 +11,11 @@ import logging
 from pathlib import Path
 
 import pytest
-
 from PySide6.QtCore import QEventLoop, QTimer
 
 from streamdeck_ui.elgato_plugin.launcher import launch_plugin
 from streamdeck_ui.elgato_plugin.runtime import PluginRuntime
 from streamdeck_ui.elgato_plugin.server import ElgatoPluginHost
-
 from tests.common import TEST_PLUGIN_ACTION, TEST_PLUGIN_UUID, write_executable_plugin
 
 HERE = Path(__file__).resolve().parent

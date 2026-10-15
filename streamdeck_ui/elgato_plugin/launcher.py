@@ -9,15 +9,15 @@ is known to read, the rest is what the bundles out there ask for and stays unver
 complains.
 """
 
-from dataclasses import dataclass, field
 import json
 import logging
 import os
 import subprocess
 import threading
 import time
-from typing import Any, Callable, Optional
 import uuid as uuid_module
+from dataclasses import dataclass, field
+from typing import Any, Callable, Optional
 
 from streamdeck_ui.elgato_plugin.manifest import PLATFORM_LINUX, PluginManifest
 from streamdeck_ui.elgato_plugin.protocol import REGISTER_PLUGIN
@@ -126,7 +126,15 @@ def launch_plugin(
     # shared command line cannot carry both readers: only one form can be seen per spawn. Both
     # styles ignore what they do not expect, so a plugin that dies before its handshake gets one
     # more chance in the other form.
-    flag_arguments = [str(executable), "-port", str(port), "-pluginUUID", connection_uuid, "-registerEvent", REGISTER_EVENT]
+    flag_arguments = [
+        str(executable),
+        "-port",
+        str(port),
+        "-pluginUUID",
+        connection_uuid,
+        "-registerEvent",
+        REGISTER_EVENT,
+    ]
 
     # Which handshake a plugin understands is only visible in the way it dies, and a Go binary can
     # print nothing at all while doing it. Positional goes first because it is what the protocol
@@ -180,17 +188,17 @@ def launch_plugin(
         started = time.monotonic()
         deadline = started + EARLY_EXIT_SECONDS
 
-        def read_ahead(stream, level: str, pending: list[tuple[str, str]]) -> None:
+        def read_ahead(stream, level: str, pending: list[tuple[str, str]], cutoff: float) -> None:
             if stream is None:
                 return
 
-            def emit(text: str) -> None:
-                pending.append((level, text))
+            def emit(text: str, _level: str = level, _pending: list = pending) -> None:
+                _pending.append((_level, text))
 
             # readline() parks on the stream until it gets a line or EOF. A live plugin would hold
             # it forever, so drop these readers once the window closes; whatever the plugin wrote
             # is already in the OS pipe buffer and the watcher picks it up as soon as we return.
-            while time.monotonic() < deadline:
+            while time.monotonic() < cutoff:
                 line = stream.readline()
                 if not line:
                     break
@@ -200,8 +208,8 @@ def launch_plugin(
 
         pending: list[tuple[str, str]] = []
         readers = [
-            threading.Thread(target=read_ahead, args=(process.stdout, "info", pending), daemon=True),
-            threading.Thread(target=read_ahead, args=(process.stderr, "warning", pending), daemon=True),
+            threading.Thread(target=read_ahead, args=(process.stdout, "info", pending, deadline), daemon=True),
+            threading.Thread(target=read_ahead, args=(process.stderr, "warning", pending, deadline), daemon=True),
         ]
         for reader in readers:
             reader.start()
@@ -231,11 +239,15 @@ def launch_plugin(
         if index + 1 < len(handshake_orders):
             note("info", f"retrying with the {handshake_orders[index + 1][0]} handshake")
     else:
-        note("warning", f"never stayed up ({exit_description(process)})")
+        if process is not None:
+            note("warning", f"never stayed up ({exit_description(process)})")
 
     log_line = log or _default_log
     for level, message in early_output:
         log_line(level, message)
+
+    if process is None:
+        raise RuntimeError(f"no handshake spawned a process for {manifest.uuid}")
 
     plugin = PluginProcess(
         manifest=manifest,

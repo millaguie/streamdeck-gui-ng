@@ -1,8 +1,8 @@
-from dataclasses import dataclass
-from importlib import import_module
 import logging
 import os
 import re
+from dataclasses import dataclass
+from importlib import import_module
 from typing import Optional
 
 from StreamDeck.DeviceManager import DeviceManager

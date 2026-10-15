@@ -162,7 +162,9 @@ def _entry_with_local_bundle(tmp_path, manifest, uuid):
 
 
 def test_compatibility_hidden_web_plugin(tmp_path):
-    entry = _entry_with_local_bundle(tmp_path, {"Name": "Webby", "UUID": "com.example.webby", "CodePath": "index.html"}, "com.example.webby")
+    entry = _entry_with_local_bundle(
+        tmp_path, {"Name": "Webby", "UUID": "com.example.webby", "CodePath": "index.html"}, "com.example.webby"
+    )
     result = marketplace.filter_compatible_entries({entry.uuid: entry}, cache_path=tmp_path / "compat.json")
     assert result == {}
 
@@ -180,7 +182,9 @@ def test_compatibility_hidden_mac_only_bundle(tmp_path):
 
 
 def test_compatibility_keeps_linux_and_unknown(tmp_path):
-    good = _entry_with_local_bundle(tmp_path, {"Name": "Good", "UUID": "com.example.good", "CodePath": "bin/linux.bin"}, "com.example.good")
+    good = _entry_with_local_bundle(
+        tmp_path, {"Name": "Good", "UUID": "com.example.good", "CodePath": "bin/linux.bin"}, "com.example.good"
+    )
     bad = _entry_with_local_bundle(
         tmp_path,
         {"Name": "WinOnly", "UUID": "com.example.win", "OS": [{"Platform": "windows"}], "CodePath": "app.exe"},
@@ -193,7 +197,9 @@ def test_compatibility_keeps_linux_and_unknown(tmp_path):
 
 
 def test_compatibility_cache_survives_between_passes(tmp_path):
-    entry = _entry_with_local_bundle(tmp_path, {"Name": "Good", "UUID": "com.example.good", "CodePath": "bin/linux.bin"}, "com.example.good")
+    entry = _entry_with_local_bundle(
+        tmp_path, {"Name": "Good", "UUID": "com.example.good", "CodePath": "bin/linux.bin"}, "com.example.good"
+    )
     cache = tmp_path / "compat.json"
     first = marketplace.filter_compatible_entries({entry.uuid: entry}, cache_path=cache)
     assert set(first) == {entry.uuid}
@@ -202,8 +208,9 @@ def test_compatibility_cache_survives_between_passes(tmp_path):
 
 
 def test_runs_on_manifest_property():
-    from streamdeck_ui.elgato_plugin.manifest import PluginManifest, load_plugin_manifest
     import tempfile
+
+    from streamdeck_ui.elgato_plugin.manifest import PluginManifest, load_plugin_manifest
 
     root = Path(tempfile.mkdtemp()) / "com.example.demo.sdPlugin"
     root.mkdir()

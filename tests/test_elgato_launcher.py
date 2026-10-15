@@ -5,14 +5,9 @@ import time
 
 import pytest
 
-from streamdeck_ui.elgato_plugin.launcher import (
-    app_info,
-    launch_plugin,
-    new_connection_uuid,
-)
+from streamdeck_ui.elgato_plugin.launcher import app_info, launch_plugin, new_connection_uuid
 from streamdeck_ui.elgato_plugin.manifest import ManifestError, load_plugin_manifest
 from streamdeck_ui.elgato_plugin.runtime import action_information
-
 from tests.common import TEST_PLUGIN_ACTION, TEST_PLUGIN_UUID, write_executable_plugin
 
 ARGV_PLUGIN = """
@@ -172,7 +167,12 @@ def launch_and_wait(tmp_path, source, name="p.sdPlugin", port=4321, connection="
     manifest = write_executable_plugin(tmp_path / name, source)
     lines = []
     process = launcher.launch_plugin(
-        manifest, port, connection, {}, {}, log=lambda level, message: lines.append((level, message)),
+        manifest,
+        port,
+        connection,
+        {},
+        {},
+        log=lambda level, message: lines.append((level, message)),
         extra_environment={"REA_OK": str(tmp_path / "ok")},
     )
     assert wait_until(lambda: not process.running), "plugin never finished"

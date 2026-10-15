@@ -1,7 +1,6 @@
 """Fixtures shared by the Qt based suites."""
 
 import pytest
-
 from PySide6.QtCore import QCoreApplication
 
 

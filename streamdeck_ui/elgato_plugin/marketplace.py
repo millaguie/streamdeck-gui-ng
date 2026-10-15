@@ -219,6 +219,8 @@ def _could_hold_bundle(filename: str, uuid: str) -> bool:
 
 def download_bundle(asset: BundleAsset, destination: Path) -> Path:
     """Fetches one archive into ``destination`` and returns its path."""
+    if not asset.url.startswith("https://"):
+        raise MarketplaceError(f"refusing to download {asset.filename} over a non-https url")
     if asset.size and asset.size > MAX_ARCHIVE_BYTES:
         raise MarketplaceError(f"{asset.filename} is bigger than the {MAX_ARCHIVE_BYTES} byte limit")
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -226,7 +228,9 @@ def download_bundle(asset: BundleAsset, destination: Path) -> Path:
     try:
         request = urllib.request.Request(asset.url, headers={"User-Agent": "streamdeck-linux-gui"})
         written = 0
-        with urllib.request.urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response, open(temp, "wb") as out:
+        with urllib.request.urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response, open(  # nosec B310
+            temp, "wb"
+        ) as out:
             while True:
                 chunk = response.read(1 << 16)
                 if not chunk:
@@ -533,9 +537,11 @@ def _peek_bundle_manifest(entry: CatalogueEntry, token: Optional[str] = None) ->
 
 def _read_package_bytes(url: str) -> bytes:
     """Fetch one package over the network or read it straight from a local path."""
-    if url.startswith(("http://", "https://")):
+    if url.startswith("https://"):
         request = urllib.request.Request(url, headers={"User-Agent": "streamdeck-linux-gui"})
-        with urllib.request.urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
+        with urllib.request.urlopen(
+            request, timeout=DOWNLOAD_TIMEOUT_SECONDS
+        ) as response:  # nosec B310 - https checked on this branch
             return response.read(MAX_ARCHIVE_BYTES + 1)
     path = Path(url.removeprefix("file://"))
     if not path.is_file():
@@ -614,12 +620,16 @@ def _inside(path: Path, directory: Path) -> bool:
 
 
 def _get_json(url: str, token: Optional[str] = None) -> object:
+    if not url.startswith("https://"):
+        raise MarketplaceError(f"refusing to talk to a non-https endpoint: {url}")
     headers = {"User-Agent": "streamdeck-linux-gui", "Accept": "application/vnd.github+json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     try:
         request = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
+        with urllib.request.urlopen(
+            request, timeout=DOWNLOAD_TIMEOUT_SECONDS
+        ) as response:  # nosec B310 - https enforced in _get_json
             return json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, ValueError) as error:
         raise MarketplaceError(f"Could not read {url}: {error}") from error
