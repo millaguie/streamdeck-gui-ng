@@ -2003,6 +2003,10 @@ def start(_exit: bool = False) -> None:
             # for your application
             app = QApplication(sys.argv)
             app.setApplicationName(APP_NAME)
+            # Lets GNOME/Wayland associate the window with our .desktop entry
+            # (and therefore its Icon). Without an app_id the shell falls back
+            # to a generic icon.
+            app.setDesktopFileName("streamdeck-gui-ng")
             app.setApplicationVersion(app_version)
             logo = QIcon(APP_LOGO)
             app.setWindowIcon(logo)
