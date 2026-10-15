@@ -4,7 +4,7 @@ This document explains how the fork runs plugins in the official `.sdPlugin` for
 the plugin API looks like from a plugin's point of view, how the whole thing was built
 (clean-room discipline), and how our own `net.millaguie.minino.*` bundles reimplement a set of
 everyday plugins natively. For the statement about what is and is not vendored in this repository,
-see [PROVENANCE.md](../PROVENANCE.md).
+the build inputs are auditable from `plugins/build_minino.py` and `plugins/src/`.
 
 ## Why this exists: interoperability
 
@@ -98,8 +98,8 @@ implementation:
    `tests/test_elgato_service.py` pins the page-sync rules, and `tests/test_elgato_runtime.py`
    runs a real plugin process over a real WebSocket against a recorded deck.
 3. **Nothing from anyone else's tree enters this one.** No code, assets, profiles or binaries from
-   any other product are inputs to the build. That claim is checkable, and the check script lives
-   in [PROVENANCE.md](../PROVENANCE.md).
+   any other product are inputs to the build. That claim is checkable by comparing the digests of
+   the PNGs our build produces against the PNGs of any installed third-party bundle.
 
 This is a working discipline, not a certified legal process. If a formally certified clean room is
 ever needed (separate people writing specification and implementation), the codebase is already
