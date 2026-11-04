@@ -31,7 +31,7 @@ class Pipeline:
         # like using functools.partial, but this needs to be investigated.
 
         for i, (current_filter, cached) in enumerate(self.filters):
-            (result_image, hashcode) = current_filter.transform(
+            result_image, hashcode = current_filter.transform(
                 lambda input_image=image: input_image.copy() if input_image else None,  # type: ignore [misc]
                 lambda output_hash, pipeline_hash=pipeline_hash: self.output_cache.get(hash((output_hash, pipeline_hash)), None),  # type: ignore [misc]
                 is_modified | self.first_run,
