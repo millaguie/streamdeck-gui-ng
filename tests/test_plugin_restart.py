@@ -1,7 +1,6 @@
 """Restarting a dead plugin must not leave the old reader thread on the new socket."""
 
 import logging
-import textwrap
 import time
 from pathlib import Path
 
@@ -10,21 +9,19 @@ from streamdeck_ui.plugin_system.schema import PluginManifest
 
 # Sends numbered log messages as fast as it can, so two reader threads on
 # the same socket would split frames and break the sequence.
-PLUGIN_SCRIPT = textwrap.dedent(
-    """
-    import socket, sys, time
-    from streamdeck_ui.plugin_system.protocol import MessageType, ProtocolMessage
+PLUGIN_SCRIPT = """
+import socket, sys, time
+from streamdeck_ui.plugin_system.protocol import MessageType, ProtocolMessage
 
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.connect(sys.argv[1])
-    i = 0
-    while True:
-        msg = ProtocolMessage(type=MessageType.LOG_MESSAGE, payload={"level": "info", "message": str(i)})
-        s.sendall(msg.to_bytes())
-        i += 1
-        time.sleep(0.001)
-    """
-)
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.connect(sys.argv[1])
+i = 0
+while True:
+    msg = ProtocolMessage(type=MessageType.LOG_MESSAGE, payload={"level": "info", "message": str(i)})
+    s.sendall(msg.to_bytes())
+    i += 1
+    time.sleep(0.001)
+"""
 
 
 def _wait_for(predicate, timeout=10.0):
