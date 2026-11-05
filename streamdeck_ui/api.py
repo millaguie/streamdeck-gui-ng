@@ -122,6 +122,16 @@ class StreamDeckServer:
             repaint=self._repaint_official_button, on_settings=self._on_official_plugin_settings
         )
 
+    def restart_plugins(self) -> None:
+        """Restart all running plugin instances in the background.
+
+        Each plugin script is read again from disk, so code changes apply.
+        """
+        if self.plugin_manager is None:
+            logger.info("Plugin restart requested, but plugins are disabled")
+            return
+        self.plugin_manager.restart_all_instances()
+
     def shutdown(self) -> None:
         """Shutdown the StreamDeck server and cleanup all resources."""
         logger.info("Shutting down StreamDeck server...")

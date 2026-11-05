@@ -8,7 +8,7 @@ from functools import partial
 from importlib.metadata import PackageNotFoundError, version
 from subprocess import Popen  # nosec - Need to allow users to specify arbitrary commands
 
-from PySide6.QtCore import QMimeData, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QMimeData, QObject, QSettings, QSignalBlocker, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QDesktopServices, QDrag, QFont, QIcon, QPalette
 from PySide6.QtWidgets import (
     QApplication,
@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from streamdeck_ui.api import StreamDeckServer
-from streamdeck_ui.cli.server import CLIStreamDeckServer
+from streamdeck_ui.cli.server import CLIStreamDeckServer, request_show_window
 from streamdeck_ui.config import (
     APP_LOGO,
     APP_NAME,
@@ -2126,6 +2126,12 @@ def streamdeck_detached(ui, serial_number):
         build_device(ui)
 
 
+class _MainThreadBridge(QObject):
+    """Lets other threads (the CLI server) ask the Qt main thread to act."""
+
+    show_window = Signal()
+
+
 def configure_signals(app: QApplication, cli: CLIStreamDeckServer):
     """Configures the termination signals for the application."""
     # Configure signal handlers
@@ -2139,6 +2145,9 @@ def configure_signals(app: QApplication, cli: CLIStreamDeckServer):
 
     # Handle <ctrl+c>
     signal.signal(signal.SIGINT, partial(sigterm_handler, app, cli))
+
+    # SIGHUP restarts all plugins, so edited plugin code applies without a full restart
+    signal.signal(signal.SIGHUP, lambda signal_value, frame: api.restart_plugins())
 
 
 def sigterm_handler(app, cli, signal_value, frame):
@@ -2199,7 +2208,9 @@ def start(_exit: bool = False) -> None:
                 api.open_config(STATE_FILE)
             api.start()
 
-            cli = CLIStreamDeckServer(api, main_window.ui)
+            bridge = _MainThreadBridge()
+            bridge.show_window.connect(main_window.bring_to_top)
+            cli = CLIStreamDeckServer(api, main_window.ui, on_show_window=bridge.show_window.emit)
             cli.start()
 
             configure_signals(app, cli)
@@ -2219,6 +2230,10 @@ def start(_exit: bool = False) -> None:
 
     except SemaphoreAcquireError:
         # The semaphore already exists, so another instance is running
+        if request_show_window():
+            print("streamdeck-ui is already running: showing its window")
+        else:
+            print("streamdeck-ui is already running, but it did not answer", file=sys.stderr)
         sys.exit()
 
 
