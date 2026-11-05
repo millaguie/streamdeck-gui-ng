@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
@@ -77,6 +78,9 @@ class PluginInstance:
         self.comm_thread: threading.Thread | None = None
         self.comm_lock = threading.Lock()
 
+        # Last stderr lines, shown when the plugin fails to connect.
+        self._stderr_tail: deque[str] = deque(maxlen=50)
+
     def start(self) -> bool:
         """Start the plugin process.
 
@@ -106,6 +110,12 @@ class PluginInstance:
 
             logger.info(f"Started plugin {self.plugin_id} instance {self.instance_id} " f"(PID: {self.process.pid})")
 
+            # Nobody else reads these pipes. Once one fills up (64 KiB), the
+            # plugin blocks on its next print or log line.
+            self._stderr_tail.clear()
+            self._start_output_reader(self.process.stdout, logging.DEBUG, keep_tail=False)
+            self._start_output_reader(self.process.stderr, logging.WARNING, keep_tail=True)
+
             # Wait for plugin to connect (with timeout)
             if self.socket is None:
                 logger.error(f"Socket is None for plugin {self.instance_id}")
@@ -119,10 +129,8 @@ class PluginInstance:
             except TimeoutError:
                 logger.error(f"Plugin {self.instance_id} failed to connect within timeout")
                 # Log plugin stderr for debugging
-                if self.process and self.process.poll() is not None:
-                    _, stderr = self.process.communicate(timeout=2)
-                    if stderr:
-                        logger.error(f"Plugin {self.instance_id} stderr: {stderr.decode()[:1000]}")
+                if self._stderr_tail:
+                    logger.error(f"Plugin {self.instance_id} stderr:\n" + "\n".join(self._stderr_tail))
                 self.stop()
                 return False
 
@@ -181,6 +189,34 @@ class PluginInstance:
         if self.comm_thread and self.comm_thread is not threading.current_thread():
             self.comm_thread.join(timeout=2.0)
         return self.start()
+
+    def reload(self) -> bool:
+        """Stop the plugin cleanly and start it again.
+
+        The plugin script is read again from disk, so code changes apply.
+        """
+        self.stop()
+        if self.comm_thread and self.comm_thread is not threading.current_thread():
+            self.comm_thread.join(timeout=2.0)
+        self.retry_count = 0
+        return self.start()
+
+    def _start_output_reader(self, stream: Any, level: int, keep_tail: bool) -> None:
+        """Forward a plugin output pipe to the host log, line by line."""
+        if stream is None:
+            return
+
+        def _read() -> None:
+            with stream:
+                for raw in iter(stream.readline, b""):
+                    line = raw.decode(errors="replace").rstrip()
+                    if not line:
+                        continue
+                    if keep_tail:
+                        self._stderr_tail.append(line)
+                    logger.log(level, f"[{self.instance_id}] {line}")
+
+        threading.Thread(target=_read, daemon=True).start()
 
     def _close_connection(self) -> None:
         """Close both sockets and remove the socket file."""
@@ -571,6 +607,27 @@ class PluginManager:
         with self.lock:
             if instance_id in self.instances:
                 del self.instances[instance_id]
+
+    def restart_all_instances(self) -> threading.Thread:
+        """Reload every running plugin instance, in parallel, in the background.
+
+        Returns the thread doing the work, so callers can wait for it.
+        """
+
+        def _restart_all() -> None:
+            with self.lock:
+                instances = [i for i in self.instances.values() if i.running]
+            logger.info(f"Restarting {len(instances)} plugin instances")
+            threads = [threading.Thread(target=i.reload, daemon=True) for i in instances]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            logger.info("Plugin restart finished")
+
+        worker = threading.Thread(target=_restart_all, daemon=True)
+        worker.start()
+        return worker
 
     def get_instance(self, instance_id: str) -> PluginInstance | None:
         """Get plugin instance by ID."""
