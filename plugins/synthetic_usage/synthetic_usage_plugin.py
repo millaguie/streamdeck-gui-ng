@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Synthetic.new subscription quota monitor for StreamDeck UI.
 
-Synthetic exposes three concurrent budgets that all bind real usage:
+``/v2/quotas`` reports these budgets:
 
-- ``subscription``    daily request count   (renews ~24h)
-- ``rolling_5h``      rolling 5-hour requests (regenerates 5%/12 min)
-- ``weekly_credits``  weekly $ credits remaining
+- ``weekly_plan``     weekly credit %  (regenerates 2% every ~3.4h)
+- ``subscription``    daily request count (hidden while unused)
+- ``search_hourly``   web search requests per hour
 
-The plugin tracks all three.  The headline display always shows the
-*tightest* (highest-utilisation) window so the badge reflects the
-actual binding constraint — heavy bursts hit the 5h window long before
-the daily counter does.
+Older responses also had ``rolling_5h`` and ``weekly_credits``; the
+plugin still reads them if they come back.  The headline display always
+shows the *tightest* (highest-utilisation) window.
+
+The monthly "usage reset" shown in the dashboard is not in the API.
 """
 
 from __future__ import annotations
@@ -37,10 +38,12 @@ DEFAULT_OPENCODE_AUTH = str(Path.home() / ".local" / "share" / "opencode" / "aut
 # Order matters for "worst window" tie-breaks: when two windows are at
 # the same utilisation the rolling 5h is the more actionable one (the
 # user can wait 12 min for a regen tick), so it comes first.
-_WINDOW_ORDER = ("rolling_5h", "subscription", "weekly_credits")
+_WINDOW_ORDER = ("rolling_5h", "weekly_plan", "subscription", "search_hourly", "weekly_credits")
 _WINDOW_LABELS = {
     "rolling_5h": "R5h",
+    "weekly_plan": "Wk",
     "subscription": "Day",
+    "search_hourly": "Srch",
     "weekly_credits": "Wk$",
 }
 
@@ -147,6 +150,35 @@ class SyntheticUsagePlugin(BasePlugin):
                 "remaining": str(wk.get("remainingCredits") or "").lstrip("$"),
                 "renews_at": wk.get("nextRegenAt"),
                 "unit": "$",
+            }
+
+        # Web search tool: separate hourly request budget.
+        srch = (data.get("search") or {}).get("hourly") or {}
+        srch_limit = float(srch.get("limit") or 0)
+        if srch_limit > 0:
+            srch_requests = float(srch.get("requests") or 0)
+            out["search_hourly"] = {
+                "utilization": min(100.0, (srch_requests / srch_limit) * 100.0),
+                "used": int(srch_requests),
+                "limit": int(srch_limit),
+                "remaining": max(0, int(srch_limit - srch_requests)),
+                "renews_at": srch.get("renewsAt"),
+                "unit": "req",
+            }
+
+        # Newer API shape (Nov 2026): ``planWeeklyLimit`` replaces the 5h
+        # and weekly-credit blocks and only reports a percentage.
+        pw = data.get("planWeeklyLimit") or {}
+        pw_pct = pw.get("percentRemaining")
+        if isinstance(pw_pct, (int, float)):
+            pw_pct_f = max(0.0, min(100.0, float(pw_pct)))
+            out["weekly_plan"] = {
+                "utilization": 100.0 - pw_pct_f,
+                "used": round(100.0 - pw_pct_f),
+                "limit": 100,
+                "remaining": round(pw_pct_f),
+                "renews_at": pw.get("nextRegenAt"),
+                "unit": "%",
             }
         return out
 
@@ -385,6 +417,8 @@ class SyntheticUsagePlugin(BasePlugin):
             rem = window.get("remaining") or "0"
             lim = window.get("limit") or "0"
             return f"${rem}/${lim}"
+        if unit == "%":
+            return f"{window.get('remaining', 0)}% left"
         return f"{window.get('used', 0)}/{window.get('limit', 0)}"
 
     def _update_display(self) -> None:
