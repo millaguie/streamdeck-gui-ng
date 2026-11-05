@@ -218,14 +218,7 @@ class DraggableButton(QToolButton):
             return
 
         if selected_action is clear_action:
-            confirm = QMessageBox(self)
-            confirm.setWindowTitle("Clear button")
-            confirm.setText("Remove this button's configuration?")
-            confirm.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-            confirm.setIcon(QMessageBox.Icon.Question)
-            if confirm.exec() == QMessageBox.StandardButton.Yes:
-                self.api.clear_button(deck_id, page_id, button_index)
-                redraw_buttons()
+            clear_button_with_confirmation(self, deck_id, page_id, button_index)
             return
 
         target_page = selected_action.data()
@@ -378,6 +371,34 @@ def _button_state() -> int | None:
     tab_index = main_window.ui.button_states.currentIndex()
     state = main_window.ui.button_states.widget(tab_index)
     return state.property("button_state_id")
+
+
+def clear_button_with_confirmation(parent, deck_id: str, page_id: int, button_index: int) -> None:
+    """Ask for confirmation, then reset the button to empty."""
+    confirm = QMessageBox(parent)
+    confirm.setWindowTitle("Clear button")
+    confirm.setText("Remove this button's configuration?")
+    confirm.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+    confirm.setIcon(QMessageBox.Icon.Question)
+    if confirm.exec() != QMessageBox.StandardButton.Yes:
+        return
+    api.clear_button(deck_id, page_id, button_index)
+    redraw_buttons()
+    # The editor panel may still show the old config of the cleared button.
+    if _button() == button_index:
+        build_button_state_pages()
+
+
+def handle_clear_selected_button() -> None:
+    deck_id = _deck()
+    page_id = _page()
+    button_index = _button()
+    if deck_id is None or page_id is None or button_index is None:
+        QMessageBox.information(main_window, "Clear button", "Select a button first.")
+        return
+    if api.is_button_empty(deck_id, page_id, button_index):
+        return
+    clear_button_with_confirmation(main_window, deck_id, page_id, button_index)
 
 
 def handle_change_page() -> None:
@@ -1987,6 +2008,7 @@ def create_main_window(api: StreamDeckServer, app: QApplication) -> MainWindow:
     ui.actionExport.triggered.connect(partial(export_config, main_window, api))
     ui.actionImport.triggered.connect(partial(import_config, main_window, api))
     ui.actionExit.triggered.connect(app.exit)
+    ui.actionClearButton.triggered.connect(handle_clear_selected_button)
     ui.actionAbout.triggered.connect(main_window.about_dialog)
     ui.actionDocs.triggered.connect(browse_documentation)
     ui.actionGithub.triggered.connect(browse_github)

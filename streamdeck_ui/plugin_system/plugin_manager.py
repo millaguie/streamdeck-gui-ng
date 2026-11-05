@@ -130,7 +130,9 @@ class PluginInstance:
             self.last_heartbeat = time.time()
 
             # Start communication thread
-            self.comm_thread = threading.Thread(target=self._communication_loop, daemon=True)
+            self.comm_thread = threading.Thread(
+                target=self._communication_loop, args=(self.client_socket,), daemon=True
+            )
             self.comm_thread.start()
 
             return True
@@ -160,8 +162,33 @@ class PluginInstance:
                 self.process.kill()
                 self.process.wait()
 
-        # Close sockets
+        self._close_connection()
+
+        logger.info(f"Stopped plugin {self.instance_id}")
+
+    def restart(self) -> bool:
+        """Start the plugin again after its process died.
+
+        Closes the old connection first. Otherwise the old communication
+        thread keeps reading and steals bytes from the new socket.
+        """
+        self.running = False
+        if self.process and self.process.poll() is None:
+            self.process.kill()
+        if self.process:
+            self.process.wait()
+        self._close_connection()
+        if self.comm_thread and self.comm_thread is not threading.current_thread():
+            self.comm_thread.join(timeout=2.0)
+        return self.start()
+
+    def _close_connection(self) -> None:
+        """Close both sockets and remove the socket file."""
         if self.client_socket:
+            try:
+                self.client_socket.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
             self.client_socket.close()
             self.client_socket = None
 
@@ -169,11 +196,8 @@ class PluginInstance:
             self.socket.close()
             self.socket = None
 
-        # Remove socket file
         if self.socket_path and os.path.exists(self.socket_path):
             os.unlink(self.socket_path)
-
-        logger.info(f"Stopped plugin {self.instance_id}")
 
     def send_button_pressed(self) -> None:
         """Notify plugin that button was pressed."""
@@ -242,54 +266,51 @@ class PluginInstance:
         except Exception as e:
             logger.error(f"Failed to send message to plugin {self.instance_id}: {e}")
 
-    def _receive_message(self) -> ProtocolMessage | None:
-        """Receive message from plugin."""
-        if not self.client_socket:
-            return None
+    def _receive_message(self, sock: socket.socket) -> ProtocolMessage | None:
+        """Receive message from plugin.
+
+        Raises ConnectionError when the plugin closes the socket. Returns
+        None when a message arrives but does not parse.
+        """
+        # Read length prefix (4 bytes)
+        length = int.from_bytes(self._recv_exact(sock, 4), byteorder="big")
+        message_data = self._recv_exact(sock, length)
 
         try:
-            # Read length prefix (4 bytes)
-            length_data = self._recv_exact(4)
-            if not length_data:
-                return None
-
-            length = int.from_bytes(length_data, byteorder="big")
-
-            # Read message data
-            message_data = self._recv_exact(length)
-            if not message_data:
-                return None
-
             return ProtocolMessage.from_bytes(message_data)
-
         except Exception as e:
             logger.error(f"Failed to receive message from plugin {self.instance_id}: {e}")
             return None
 
-    def _recv_exact(self, n: int) -> bytes | None:
+    @staticmethod
+    def _recv_exact(sock: socket.socket, n: int) -> bytes:
         """Receive exactly n bytes from socket."""
-        if self.client_socket is None:
-            return None
         data = b""
         while len(data) < n:
-            chunk = self.client_socket.recv(n - len(data))
+            chunk = sock.recv(n - len(data))
             if not chunk:
-                return None
+                raise ConnectionError("plugin closed the socket")
             data += chunk
         return data
 
-    def _communication_loop(self) -> None:
-        """Communication loop running in background thread."""
+    def _communication_loop(self, sock: socket.socket) -> None:
+        """Communication loop running in background thread.
+
+        Reads only from ``sock``, the socket it was started with, and ends
+        when that socket closes. A restart opens a new socket and a new loop.
+        """
         logger.info(f"Communication loop started for plugin {self.instance_id}")
 
-        while self.running:
+        while self.running and self.client_socket is sock:
             try:
-                message = self._receive_message()
+                message = self._receive_message(sock)
                 if not message:
-                    time.sleep(0.1)
                     continue
 
                 self._handle_message(message)
+
+            except OSError:  # includes ConnectionError: the plugin closed the socket
+                break
 
             except Exception as e:
                 logger.error(
@@ -587,7 +608,7 @@ class PluginManager:
                             f"(attempt {instance.retry_count}/{instance.manifest.max_retries})"
                         )
                         time.sleep(instance.manifest.retry_delay)
-                        instance.start()
+                        instance.restart()
                     else:
                         logger.error(f"Plugin {instance.instance_id} exceeded max retries, giving up")
                         instance.running = False
