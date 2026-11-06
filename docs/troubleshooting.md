@@ -86,3 +86,23 @@ This module is part of `setuptools` but may be missing on your system.
 python -m pip install setuptools
 
 ```
+
+## Restart plugins
+
+Restart all plugins without closing the app. Each plugin script is read again from disk, so code
+changes apply. Use one of these:
+
+```bash
+streamdeckc -a restart_plugins
+pkill -HUP -f "streamdeck_ui.gui"
+```
+
+Plugin output to `stdout` and `stderr` goes to the app log. `stdout` is logged at debug level and
+`stderr` at warning level.
+
+## The window does not open
+
+Only one instance runs at a time. If you start the app again, the new instance asks the running one
+to show its window and exits. If the running instance does not answer, the new one prints
+`streamdeck-ui is already running, but it did not answer`. Stop the old process and start the app
+again.

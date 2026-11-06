@@ -167,6 +167,14 @@ class ClearButtonIconCommand:
         api.set_button_icon(deck_id, self.page_index, self.button_index, "")
 
 
+class RestartPluginsCommand:
+    def __init__(self, cfg):
+        pass
+
+    def execute(self, api: StreamDeckServer, ui):
+        api.restart_plugins()
+
+
 def create_command(cfg: dict) -> tp.Optional[Command]:
     if cfg["command"] == "set_page":
         return SetPageCommand(cfg)
@@ -188,4 +196,6 @@ def create_command(cfg: dict) -> tp.Optional[Command]:
         return ClearButtonIconCommand(cfg)
     elif cfg["command"] == "set_state":
         return SetButtonStateCommand(cfg)
+    elif cfg["command"] == "restart_plugins":
+        return RestartPluginsCommand(cfg)
     return None

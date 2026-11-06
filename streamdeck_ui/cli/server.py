@@ -4,6 +4,7 @@ import os
 import socket
 import sys
 import tempfile
+from collections.abc import Callable
 from threading import Event, Thread
 
 from streamdeck_ui.api import StreamDeckServer
@@ -28,8 +29,10 @@ def write_json(sock: socket.socket, data: dict) -> None:
 class CLIStreamDeckServer:
     SOCKET_CONNECTION_TIMEOUT_SECOND = 0.5
 
-    def __init__(self, api: StreamDeckServer, ui):
+    def __init__(self, api: StreamDeckServer, ui, on_show_window: Callable[[], None] | None = None):
         self.quit = Event()
+        # Called from the CLI thread. It must hand the work to the Qt main thread.
+        self.on_show_window = on_show_window
         self.cli_thread = None
 
         self.api = api
@@ -57,11 +60,8 @@ class CLIStreamDeckServer:
 
     def _run(self):
         try:
-            tmpdir = tempfile.gettempdir()
-            filename = "streamdeck_ui.sock"
-
             saved_umask = os.umask(0o077)
-            path = os.path.join(tmpdir, filename)
+            path = cli_socket_path()
 
             if os.path.exists(path):
                 os.remove(path)
@@ -76,6 +76,11 @@ class CLIStreamDeckServer:
             try:
                 conn, _ = self.sock.accept()
                 cfg = read_json(conn)
+                if cfg.get("command") == "show_window":
+                    if self.on_show_window is not None:
+                        self.on_show_window()
+                    conn.close()
+                    continue
                 cmd = create_command(cfg)
                 cmd.execute(self.api, self.ui)
                 conn.close()
@@ -89,6 +94,24 @@ class CLIStreamDeckServer:
             os.umask(saved_umask)
 
 
+def cli_socket_path() -> str:
+    return os.path.join(tempfile.gettempdir(), "streamdeck_ui.sock")
+
+
+def request_show_window() -> bool:
+    """Ask a running instance to show its window. Returns False if none answered."""
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.settimeout(2.0)
+        sock.connect(cli_socket_path())
+        write_json(sock, {"command": "show_window"})
+        return True
+    except OSError:
+        return False
+    finally:
+        sock.close()
+
+
 def execute():
     parser = optparse.OptionParser()
 
@@ -98,7 +121,8 @@ def execute():
         type="string",
         dest="action",
         help="the action to be performed. valid options (case-insensitive): "
-        + "SET_PAGE, SET_BRIGHTNESS, SET_TEXT, SET_ALIGNMENT, SET_CMD, SET_KEYS, SET_WRITE, SET_ICON, CLEAR_ICON, SET_STATE",
+        + "SET_PAGE, SET_BRIGHTNESS, SET_TEXT, SET_ALIGNMENT, SET_CMD, SET_KEYS, SET_WRITE, SET_ICON, CLEAR_ICON, SET_STATE, "
+        + "RESTART_PLUGINS",
         metavar="NAME",
     )
 
@@ -160,10 +184,7 @@ def execute():
 
     options, args = parser.parse_args(sys.argv)
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    tmpdir = tempfile.gettempdir()
-    file = "streamdeck_ui.sock"
-    path = os.path.join(tmpdir, file)
-    sock.connect(path)
+    sock.connect(cli_socket_path())
     data = None
 
     if options.action is not None:
@@ -272,6 +293,8 @@ def execute():
                 "page": options.page_index,
                 "button": options.button_index,
             }
+        elif action_name == "restart_plugins":
+            data = {"command": "restart_plugins"}
         elif action_name == "set_state":
             if options.button_index is None:
                 print("error: --button not set...")
